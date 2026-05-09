@@ -1,0 +1,1467 @@
+.NUMBER 1
+.RMARGIN 78.
+.LMARGIN 1.
+.TABS 8.,16.,24.,32.,40.,48.,56.,64.,72.
+
+
+
+			D   B   S   M   N   G
+			---------------------
+
+
+	D A T A B A S E   M A N A G E M E N T   P A C K A G E
+
+
+
+THIS PACKAGE CONSISTS OF A SET A PROGRAMS AND SUPPORT MODULES WHICH ALLOW
+A SIMPLE DATABASE TO BE SET UP ON A DEC MINICOMPUTER, AND PROVIDES FACITILIES
+TO ALLOW THE DATABASE TO BE
+
+	1)	EDITTED WITH A SCREEN ORIENTED EDITOR
+
+	2)	REPORTS TO BE GENERATED
+
+	3)	THE DATA TO BE ACCESSED FROM FORTRAN PROGRAMS
+
+
+
+
+
+-----------------------------------------------------------------------------
+
+
+	WRITTEN BY		RAY DI MARCO
+				30-MAR-81.
+
+
+	DOCUMENT VERSION	300381/01.
+
+	PRODUCT VERSION		300381/01.
+
+	TARGET MACHINE		PDP-11
+				RT11
+				EIS
+				20K WORDS
+
+	DEVELOPMENT MACHINE	PDP-11/40 UNDER RSTS 'RT11 EMULATOR'
+
+.PAGE
+
+.RMARGIN 78.
+.LMARGIN 1.
+.TABS 8.,16.,24.,32.,40.,48.,56.,64.,72.
+
+.SCENTER
+CHAPTER 1 - INTRODUCTION
+
+
+.FORMAT
+.JUSTIFY
+The database package was designed to allow small, homogeneous databases
+to be quickly set up and manipulated. The database package provides
+the user with the following facilities
+
+.indent 5
+A relatively simple method of defining the structure of the records
+which make up the database.
+
+A screen oriented database editor, which allows records to be created,
+editted and deleted. The editor supports protected and database managed
+fields. The editor was designed so that persons with little computer
+experience (ie typist, clerks etc) can use it.
+
+A report generation package, which allows specific records to be selected,
+and reports generated. The records to be included in the report can be
+sorted by any field within the record, and the report format can be easily
+modified.
+
+A fortran interface which allows records in the database to be readily
+accessed from a fortran mainline program. Fields within a record can
+be accessed via their logical name. A fortran interface is also provided
+to the sorting module, in the event that the user needs to implement
+a special application program. The fortran interface also allows the
+user to access two or more databases simaltaneously.
+.indent 0
+
+
+
+1.1)	DATABASE STRUCTURE
+
+The database consists of three files. The files each have the same name,
+but each has a different three letter extension. the three file are
+
+.UNFORMAT
+.UNJUSTIFY
+	XXXXXX.DAT	which contains the data
+	XXXXXX.KEY	which contains keys
+	XXXXXX.PAR	which contains auxilary parameters
+
+where
+
+	'XXXXXX' is the 6 letter name of the database.
+.FORMAT
+.JUSTIFY
+
+The data is stored in the '.DAT' file, in random order. Records can be
+arranged to occupy one or more blocks, or alternately, when the size of
+a record is small, a number of records can occupy one block. To allow rapid
+access to a specific record, the '.KEY' file can be used to index into the
+data file. The key file consists of upto 16 keys, one per record, which
+can be used to locate a given data record. The keys are stored in sequential
+order, in order of the record they correspond too. The parameter file
+consists of one block, and is used by the database package to store axuilary
+information associated with the database.
+.PAGE
+
+
+
+1.2)	SETTING UP A DATABASE
+
+The first step in setting up a database is to decide on the structure of the
+records. Each record in the database must be the same. A record consists
+of a number of fields. Each field must have a UNIQUE NAME, which is used
+to access the data contained in the field. The data base currently supports
+the following four types of fields-
+
+.UNFORMAT
+.UNJUSTIFY
+	field type		usage
+
+	1 (.ASC.)		used to hold any ascii strings
+	2 (.ALP.)		used to hold any alphabetic (a-z) strings
+	3 (.NUM.)		used to hold 16 bit, unsigned integers
+	4 (.DAT.)		used to hold dates
+.FORMAT
+.JUSTIFY
+
+Once the structure of the database records has been finalized, it is necessary
+to create a 'template' or 'definition' of the layout. This is done using a
+special macro contained in the Database Macro Library. For user convience,
+this macro also allows the specification of the manner in which a record
+is to be displayed on the screen by the database editor, when the record
+is to be editted.
+
+Once the 'template' file is created, (using an RT11 editor), the template
+file is assembled (using the RT11 MACRO assemblor). The OBJECT file thus
+created is then linked with the database package modules to create the
+following programs-
+
+.UNFORMAT
+.UNJUSTIFY
+	DBSMAK	which will create the database DATA, KEY and PARAMETER files
+	XXXXXX	which is used to edit the database
+	SELECT	which is used to select records for report output
+	REPORT	which creates reports from selected records.
+.FORMAT
+.JUSTIFY
+
+The 'template' file must be given the name 'XXXXXX.MAC', and the object file
+produced from it the name 'XXXXXX.OBJ', where 'XXXXXX' is the 6 letter name
+of the database. To simplify the above process, a special command file
+has been made available. The command file is invoked once the 'template'
+has been defined, and it will look after the assembly of the template,
+and its linkage with the appropriate modules.
+
+.PAGE
+
+
+1.3)	IMPORTANT FACTS
+
+The database package is meant to be run from a CRT, which has the
+ability to position its cusor onto any character position on the screen,
+and erase any line or the whole screen. The package
+will support a number of different CRTS. A list of those currently supported
+is contained in APPENDIX 1. The addition of support for a new type of CRT
+is simple.
+
+All the programs which make up the package have been designed to run under
+the control of a MENU program. This allows the package to be run by a typist
+who is relatively unfamiliar with computers. A sample menu program is
+provided with the package, and can be quickly modified to suit if required.
+The database programs are chained to by the menu program, and they will
+chain back to the menu program upon completion of their task. The
+programs pass information to each other in the 'chain data area', starting
+at memory address 540 (octal).
+
+
+The following routines must be transfered to the running volume, which must
+be assigned the logical name 'DK:'
+
+.UNFORMAT
+.UNJUSTIFY
+	XXXXXX.SAV	the database editor
+	SELECT.SAV	the record selector for report generation
+	REPORT.SAV	the report generator
+	SORTER.SAV	the sorting program used in report generation
+	SORTER.DAT	a work file used by the sorter program
+.FORMAT
+.JUSTIFY
+
+The logical name 'LST:' must also be assigned to the volume to which the
+output of the report generator is to be sent. The logical name 'DBS:'
+must be assigned to the volume upon which the three database files reside.
+
+All the support routines used by the database package are contained within
+the object library 'DBSLIB.OBJ', and all the macros required are countained
+with the macro library 'DBSMNG.SML'. These two files must be used when
+assembling or linking database package files.
+
+ A number of simplifying assumptions
+have been made in the design of the package. These are
+
+.indent 5
+That the database consists of no more than a couple of thousand records.
+While the package can theoritically handle databases with up to 65000
+records, the access time per-record becomes unacceptable if a large number
+of records are used.
+
+That each record in the database has the same format/structure. Each
+record must be the same size, and must consists of the same number of
+fields.
+.indent 0
+.PAGE
+
+
+
+.SCENTER
+CHAPTER 2 - SETTING UP THE DATABASE
+
+
+The first step in setting up the database is to create the 'template' file.
+Once the template file is created, it is assembled, and linked with the
+'DBSMAK.OBJ' file. The resulting program is run, and it will create the
+three database files.
+
+
+
+2.1)	DESIGN OF THE TEMPLATE
+
+The function of the template is twofold. Firstly, and most importantly, the
+template is used to determine the manner in which the data in a record is
+stored. Secondly, the template is used to determine the manner in which the
+data is to be displayed by the editor, and to limit the the editting operations
+allowed on a given field.
+
+The first step in the design of the template is to determine the number of
+fields required per record, the size of the fields, and the type of data
+to be stored in each. The next step is to eqaute a logical name with each
+of the fields, and then to decide were each field is to be displayed on
+the screen. Finally, we can use an editor to create a '.MAC' file, which
+contains the template definitions.
+
+When designing the template, assume that you are to design a 'card'. You
+have a black piece of paper, and must layout a form on it. For example,
+assume that we have to create a template which is to be used to hold
+data on employees. It may be decided that the following data must be
+recorded per employee
+
+.UNFORMAT
+.UNJUSTIFY
+	SURNAME		consisting of twenty letters
+	INITIALS	consisting of two letters
+	BIRTHDAY	consisting of day, month and year of birth
+	POSITION	consisting of twenty letter position title
+	JOB CODE	consisting of four digit job code
+
+If a card system was to be used, the following layout could possibly be
+used to store the data-
+
+
+	SURNAME		(....................)
+	INITIALS	(..)
+	BIRTHDAY	(..-..-..)
+	POSITION	(....................)
+	JOB CODE	(....)
+.FORMAT
+.JUSTIFY
+.PAGE
+
+
+
+2.2)	DATA NEEDED TO PRODUCE THE TEMPLATE FILE
+
+Once the layout of the data has been decided upon, it is necessary to
+produce the template file. Before this can be done, it is required that
+the card layout be translated into a number of attributes. For the
+personal card previously designed, this translation would be as follows
+
+.UNFORMAT
+.UNJUSTIFY
+	field		field	field	field	name
+	name		type	size	address	address
+
+	SURNAME		.ALP.	20	17/0	0/0
+	INITIALS	.ALP.	2	17/1	0/1
+	BIRTHDAY	.DAT.	8	17/2	0/2
+	POSITION	.ASC.	20	17/3	0/3
+	JOB CODE	.NUM.	4	17/4	0/4
+.FORMAT
+.JUSTIFY
+
+This translation implies that the first field has a logical name 'SURNAME',
+and it is an alphabetic field (ie only the letters A-Z or a SPACE character
+can be placed in the field). The field can hold upto 20 characters. When
+a Personal record is displayed, the contents of the 'SURNAME' field will
+be displayed on the first line, in the 17th character postion, and the
+logical name of the field will be displayed starting at the first character
+position. Note that the top left hand corner of the card is equivalent to
+character position 0, line number 0.
+
+
+The above translation also implies that for each record, the first twenty
+bytes will be used to hold the surname, the next two the initials, the
+next two the birthdate, the next twenty the position description, and the
+last two the job code. In total, each record will consist of 54 bytes.
+
+The layout of the template has now been finalized. the only remianing
+matter prior to creating the template file is to decide upon the keys
+to be used to access a specific record. In the above example, it would
+be advantageuos to be able to locate a given record by specifing the
+employees surname, or the job code. Let us therefore decide to use these
+fields as keys for locating a record.
+
+
+
+2.3)	CREATING THE TEMPLATE FILE
+
+
+The template file is created with the use of an editor. TECO, EDIT and
+KED are all suitable. Invoke the editor, and tell it that you wish to
+create the file 'XXXXXX.MAC', where XXXXXX is the six letter name of
+the database. The template file constists of three sections. These
+sections are termed the
+
+.UNFORMAT
+.UNJUSTIFY
+	PERAMBLE
+
+	FIELD DEFINITION
+
+	KEY DEFINITION
+.FORMAT
+.JUSTIFY
+.PAGE
+
+
+2.3.1)	THE PERAMBLE SECTION
+
+The function of the preamble section is to set up the assembler to
+produce the requesite template object file. A typical preamble is shown
+below
+
+.unformat
+.unjustify
+
+	.MCALL	FORM		; GET MACRO FROM 'DBSMNG.SML' LIBRARY
+;
+	FORM	PERSON		; INVOKE MACRO TO SET UP ASSEMBLER
+.FORMAT
+.JUSTIFY
+
+The above preamble, will cause the assembler to obtain a copy of the FORM
+macro from the database Macro Definition Libary, and then invoke it, passing
+the 'PERSON' string as a parameter to it. The name of the data base will
+then be 'PERSON'. As no extra arguments are specified as part of the macro
+invokation, default values for the other parameters will be used, resulting
+in the database consisting of 200 records, with each record occuping 1 disk
+block (ie 512 bytes).
+
+Two other parameters can optionally be specified when invoking the FORM
+macro. These parameters are
+
+.unformat
+.unjustify
+	ENTRIES	number of records in database
+and
+	BLOCK	the blocking factor to be used
+.FORMAT
+.JUSTIFY
+
+The blocking factor parameter is the only complicated one. It can be either
+a positive or negative integer. If a positive integer is specified, then
+each record will occupy that number of disk blocks. If a negative integer
+is specified, then a number of records will be compressed into each block.
+the relationship between blocking factor and records per block is
+
+.unformat
+.unjustify
+	BLOCKING FACTOR			meaning
+		+N			each record occupies N blocks
+		+1			each record occupies 1 blocks
+		0			each record occupies 1 blocks
+		-1			each record occupies 1 blocks
+		-2			two records are stored per block
+		-3			four records are stored per block
+		-4			eight records stored per block
+		-5			sixteen records stored per block
+		-6			thirty-two records per block
+.FORMAT
+.JUSTIFY
+
+In the personal example previously used, it would be most efficient to
+store 8 records per block (as each record occupies only 58 bytes). If
+we required a database with 50 records, then the invokation of the FORM
+macro would be as follows
+
+	FORM	PERSON,ENTRIES=50.,BLOCK=-4
+
+In the event that too small a blocking factor is used, the macro will
+produce an appropriate error message at assembly time.
+
+.page
+
+
+2.3.2)	FIELD DEFINITIONS
+
+The next section in the template file consists of a number of one line
+entries. Each line will result in the definition of one of the fields in
+the database. The order in which the fields are defined will determine the
+order in which the field data is stored in the record, and the order in
+which fields will be activated for editting. Each definition must start
+with the keyword FIELD, which will cause the FIELD macro to be invoked
+to process the arguments specified on the line. The FIELD macro invokation
+takes the form
+
+	FIELD	X,Y,TYPE,DATA,XN,NAME,LD,RD,CHECK,PROTECT
+
+where
+
+	X/Y	is the character position and line number at which the
+		field data is to be displayed by the editor
+
+	TYPE	is the type of the field. TYPE can be any of the valid
+		field types supported (ie .ASC. .ALP. .NUM. .DAT.)
+
+	DATA	is used to reserve space on the screen for displaying the
+		data in the field. this argument must be enclosed between
+		angle brackets, and is ignored for '.DAT.' type fields,
+		which always require 8 character spaces.
+
+	XN	is the character position at which the NAME is to be displayed
+
+	NAME	is the logical name of the field
+
+	LD/RD	are the left and right field delimiters, which are used to
+		enclose the data field. The default if these are not explicitly
+		defined are round brackets.
+
+	CHECK	is valid for only .NUM. type fields, and is the value of the
+		largest integer which can be placed in the field.
+
+	PROTECT	can be either a 1 or a 0. If protect is assigned the value
+		1, then the contents of the field can not be modified by
+		the database editor. This provides a simple machinism for
+		protecting a field.
+
+The FIELD definition section must be terminated with the 'FORMEND' macro. This
+macro is placed on a line by itself, at the end of the field definitions.
+
+For the personal records previously defined, the FIELD definitions would be
+entered as follows-
+
+.unformat
+.unjustify
+FIELD	17.,0	.ALP.,<....................>	0,<SURNAME>
+FIELD	17.,1	.ALP.,<..>			0,<INITIALS>
+FIELD	17.,2	.DAT.,<..-..-..>		0,<BIRTHDAY>
+FIELD	17.,3	.ASC.,<....................>	0,<POSITION>
+FIELD	17.,4	.NUM.,<....>			0,<JOB CODE>,CHECK=9999.
+FORMEND
+.FORMAT
+.JUSTIFY
+.PAGE
+
+
+2.3.3)	KEY DEFINITIONS
+
+The next section in the template file consists of a number of one line
+entries. Each line will result in the definition of a KEY which can be used
+to quickly locate a specified record. The database package allocates room
+for 16 keys per record. The first of these keys is reserved for use by the
+database package, which allows the user to specify upto 15 other keys. The
+definition of a KEY is done with the KEY macro. Each definition requires
+that a one line entry, starting with the word KEY, be entered. The KEY
+macro accepts the same arguments, and operates exactly the same as the
+FIELD macro. The KEY definition phase is terminated with the KEYEND macro,
+which goes on a line by itself, at the end of the KEY definitions. In the
+personal example previously studied, the KEY definitions would be as
+follows
+
+.unformat
+.unjustify
+KEY	17.,0	.ALP.,<....................>	0,<SURNAME>
+KEY	17.,1	.NUM.,<....>			0,<JOB CODE>
+.FORMAT
+.JUSTIFY
+
+Note that the X/Y coordinates specified when a KEY is defined determine
+where the KEY field will be positioned on the screen by the database
+editor when a record is to be located via its keys.
+
+
+2.3.4)	ASSEMBLING THE TEMPLATE FILE
+
+Once the TEMPLATE source file, 'XXXXXX.MAC' has been created, it is now
+ready to be assembled. This is done under RT11 with the command
+
+.scenter
+MACRO XXXXXX+DBSMNG.SML/LIB
+
+or its equivalent under another operating system. This will result in the
+creation of the file 'XXXXXX.OBJ', which will be termed the TEMPLATE from
+now on. The assembly will take in the order of a minute. Two error messages
+can result. An error will be flaged if the database name, defined when the
+FORM macro was invoked, is not 6 letters long. Another error will be flaged
+if the BLOCKING FACTOR is too small.
+.page
+
+
+2.3.5)	DATABASE MANAGED FIELDS
+
+The database package recognizes and provides automatic support for 6 special
+fields. If these fields have been defined in the TEMPLATE, the database
+package will display and update these as needed. If these fields have not
+been defined in the TEMPLATE, the database package ignores them.
+
+Each of the special fields has a two letter (lower case) name. the names
+and fuction of each field is as follows
+
+	cn	a sixteen bit integer, which uniquely identifies each
+		record. The numbers are assigned sequently, starting at
+		1, as each record is created. This number is termed the
+		Computer Number.
+
+	rn	the position of the record in the data file. Record numbers
+		start at 1. Note that if a record is deleted, the slot in
+		the data file is now available for reuse. If a new record
+		is created, it will have the same Record Number as that which
+		was deleted, but it will be given a new Computer Number.
+
+	st	the STatus field indicates the current state of a record.
+		When a record is first being created (with the database
+		editor), its status will be NW (new). Once created, a
+		record will be given a status of AC (active). If the
+		database editor is used to delete a record, it will be
+		given a status of DE (deleted).
+
+	cd	the Creation Date is the date upon which the record was
+		first created with the database editor's NEW command.
+
+	ed	the Edit Date is the date upon which a record was last
+		editted with the database editor.
+
+	dd	the Deletion Date is the data upon which the record was
+		deleted using the database editor.
+
+It is strongly suggested that these special fields be included within all
+TEMPLATES. Each special field has its own uses. The 'cn' field is of value
+to track transactions associated with a given record. The 'cd', 'ed' and
+'dd' fields are of value in tracking the changes/updates to a given record. The
+'st' and 'rn' fields are extremly useful when using the database editor.
+
+If any of these fields are included within the TEMPLATE, they should be
+protected to ensure that they are not modified by an operator. This is
+of extreme importance for databases which require special security
+arrangements (ie commercial applications).
+
+NOTE	The 'cn' and 'rn' fields are of the '.NUM.' type. The 'st'
+	field is of type '.ALP.'. The 'cd', 'ed' and 'dd' fields are
+	of type '.DAT.'.
+.page
+
+
+
+2.3.6)	NOTES ON CREATING TEMPLATES
+
+In some applications it may be necessary that certain fields be modified
+only via special user written application programs, and not be alterable
+by an operator using the database editor. This may be required if a log
+of tranactions is to be kept. In this event, the 'PROTECT' option in the
+FIELD macro should be used.
+
+The four different types of fields currently supported have proved
+sufficient for all applications to date. It is possible that other types
+of fields will be added in the future. The amount of space (in bytes) taken
+up in the record by a particular type of field is detailed below
+
+.indent 5
+The amount of storage required for a .ASC. or .ALP. field depends
+on how large the field size was defined in the FIELD macro. The DATA
+argument to the macro consists of a number of dots enclosed within
+angle brackets. Each dot represents one character position, and the
+total number of dots represents the size of the character string
+which can be stored in that field.
+
+Each .NUM. or .DAT. field requires 2 bytes of storage within the
+record. The DATA argument specified when a numeric field is defined
+determines only the number of digits to be displayed when the database
+editor is used. The DATA argument is ignored for .DAT. fields.
+.indent 0
+
+
+A record can in theory be 65000 bytes long. In practice, if the database
+editor is to be used to manipulate records, the limiting factor becomes
+the amount of data that can be displayed on the CRT screen. The top four
+lines of the screen are used by the database editor to display prompts,
+error messages etc. The rest of the CRT screen can be used to display the
+form. If a 48 line CRT (Intecolor) is being used, this still leaves the
+user with 44 lines. Note that X=0, Y=0 corresponds to the leftmost
+character position of the first available line when using the FIELD or
+KEY macros.
+
+Any record field, other than those of type .DAT. can be used as a key to
+the record. It is up to the template designer to select suitable keys. It
+has proven advantageous to include the 'st' and 'cn' fields as keys in the
+past. This is especially so when the database editor is to be used.
+
+When defining a FIELD or KEY, the definition line may be up to 130 characters
+long. The limiting factor is the lenght of the line accepted by the
+assembler.
+
+The FORM macro has been set up so that the defaults for the ENTRIES and
+BLOCK arguments are 200 and 1 respectively. The FIELD and KEY macros
+have been set up so that the defaults for the LD, RD, CHECK and PROTECT
+arguments are '(', ')', 9999 and 0 respectively. The FORM, FIELD and
+KEY macro place a number of restrictions on the user (viz the name of
+each field must be displayed on the same line as the data within the
+field). This limitations is imposed by the macros, not the database
+package. For exotic applications it is possible to redefine these macros
+to provide greater flexibility.
+.page
+
+
+
+2.3.7)	EXAMPLE TEMPLATE
+
+Below is a copy of a TEMPLATE for the personal example previously discussed.
+The special database managed fields have been included.
+
+.unformat
+.unjustify
+
+.TITLE	PERSONAL
+;
+.MCALL	FORM						; FETCH MACRO
+	FORM	PERSONAL,ENTRIES=50.,BLOCK=-4		; SET UP FOR FORM
+;
+;
+;		--- DEFINE FIELDS ---
+;
+FIELD	17.,0	.ALP.,<....................>	0,<SURNAME>
+FIELD	17.,1	.ALP.,<..>			0,<INITIALS>
+FIELD	17.,2	.DAT.,<..-..-..>		0,<BIRTHDAY>
+FIELD	17.,3	.ASC.,<....................>	0,<POSITION>
+FIELD	17.,4	.NUM.,<....>			0,<JOB CODE>,CHECK=9999.
+;
+FIELD	17.,10	.NUM.,<....>			0,<cn>,PROTECT=1
+FIELD	17.,11	.NUM.,<....>			0,<rn>,PROTECT=1
+FIELD	17.,12	.ALP.,<..>			0,<st>,PROTECT=1
+FIELD	17.,13	.DAT.,<..-..-..>		0,<cd>,PROTECT=1
+FIELD	17.,14	.DAT.,<..-..-..>		0,<ed>,PROTECT=1
+FIELD	17.,15	.DAT.,<..-..-..>		0,<dd>,PROTECT=1
+FORMEND
+;
+;
+;		--- DEFINE KEYS ---
+;
+KEY	17.,0	.ALP.,<....................>	0,<SURNAME>
+KEY	17.,4	.NUM.,<....>			0,<JOB CODE>,CHECK=9999.
+KEY	17.,10	.NUM.,<....>			0,<cn>,PROTECT=1
+KEY	17.,12	.ALP.,<..>			0,<st>,PROTECT=1
+KEYEND
+.FORMAT
+.JUSTIFY
+
+Once this TEMPLATE has been entered by means of an editor, it would
+be assembled with the command
+
+.scenter
+MACRO PERSON+DBSMNG.SML/LIB
+.PAGE
+
+
+2.3.8)	CREATING THE DATABASE FILES
+
+Once the TEMPLATE has been assembled, it is now possible to create the
+three database files
+
+.unformat
+.unjustify
+		XXXXXX.DAT
+		XXXXXX.KEY
+		XXXXXX.PAR
+.format
+.justify
+
+Firstly, the TEMPLATE has to be linked with the DBSMAK module provided
+on the distribution kit. The following RT11 command, or its equivalent
+will do the linking
+
+.scenter
+LINK DBSMAK,XXXXXX,DBSLIB
+
+creating the file DBSMAK.SAV. Prior to executing this program, the logical
+name DBS: must be assigned to the volume upon which the database files are
+to be created. Assume that the volume RK1: is to be used to hold the 
+database files. The following command under RT11 will carry out the
+assignment
+
+.scenter
+ASSIGN RK1: DBS:
+
+The program can now be run the create the database files. The execution time
+of the program is approximately 14 seconds per thousand records.
+
+
+2.3.9)	THE DBSSTS MODULE
+
+A special, unsupported module, called DBSSTS.OBJ is included within the
+distribution package. It is intended to produce a tabular output of the
+contents of the TEMPLATE file. Enter the following commands
+
+.unformat
+.unjustify
+	LINK DBSSTS,XXXXXX,DBSLIB
+	RUN DBSSTS
+.FORMAT
+.JUSTIFY
+
+and the program will provide information on the fields, thier types and
+offsets, which could be of value.
+.page
+.RMARGIN 78.
+.LMARGIN 1.
+.TABS 8.,16.,24.,32.,40.,48.,56.,64.,72.
+.FORMAT
+.JUSTIFY
+
+.SCENTER
+CHAPTER 3 - DATABASE EDITOR
+
+The database editor is a special program designed to allow the user
+to create, edit and delete records within a database. Once the database
+files have been created (as previously described), the database editor
+can be linked and used. The template file for the database (XXXXXX.OBJ)
+is used to create the editor.
+
+
+
+3.1)	CREATING AND RUNNING THE DATABASE EDITOR
+
+To create the editor, it is necessary to link the database TEMPLATE with
+the editor mainline module. This is done with the following RT11 command,
+or its equivalent
+
+.scenter
+LINK XXXXXX,DBSEDT,DBSLIB
+
+where DBSEDT.OBJ and DBSLIB.OBJ are modules supplied as part of the database
+package. The above command will cause the file XXXXXX.SAV to be created.
+
+The editor is invoked with the RT11 'RUN' command. The editor will first
+issue a query as to the type of terminal being used. Simply type a <CR> to
+cause the editor to display a list of currently supported terminals, and then
+enter the name for the type of terminal you are using. You are now in the
+database editor, ready to create, edit and delete records.
+
+
+
+3.2)	COMMUNICATIONS BETWEEN EDITOR AND OPERATOR
+
+The top four lines of the screen are used by the editor to communicate with
+the operator. These four lines are used as follows
+
+.indent 5
+Line 1 is used to display a status message. This message is intended to
+inform the operator of the MODE in which the editor is currently operating.
+
+Line 2 is used to display a list of valide operator inputs. The commands
+recognized by the editor in a given MODE are always displayed on this line.
+
+Line 3 is used to input operator commands. When in COMMAND MODE, the characters
+typed by the operator are displayed on this line.
+
+Line 4 is used to display error messages. A message displaying the cause of
+the last error is always displayed on this line. The error message is
+erased when a new command is entered.
+.indent 0
+.page
+
+
+
+3.3)	EDITOR COMMAND MODE
+
+The editor initially comes up in COMMAND MODE. The top line displays
+the current status of the editor, and also indicates the name of the
+database being editted. Valid commands in this mode are
+
+.indent 5
+EXIT, which will terminate execution of the editor, and return control
+to the MENU program. Simply typing a <CR> will also return control
+to the MENU program.
+
+NEW and CREATE will cause a new record to be created. The editor will
+locate a record currently not being used, and will activate it for data
+entry. Control will be transfered to the FORM ENTRY MODE.
+
+EDIT is used to edit an existing record. The editor will first enter
+RECORD LOCATION MODE, and will then transfer control to the FORM ENTRY MODE
+to allow the contents of the record to be changed.
+
+INSPECT is used to display the contents of a record. The RECORD LOCATION
+MODE is enter to locate the desired record, which is then displayed on
+the screen.
+
+DELETE is used to cause a currently active record to be marked as deleted.
+The contents of the record are not erased, and the record will not be
+overwritten until a data collector program has freed the record. Once a
+record has been marked as deleted, it can no longer be editted.
+.indent 0
+
+The operator may select any of the above commands. When entering the command
+keyword, only the UPPER CASE characters need be typed. The lower case
+charcaters in the keyword are optional. The command keyword must be terminated
+with a <CR>. If a legal keyword was entered, control passes to the specified
+mode. When entering the command keyword, the <DELETE> and <^U> characters can
+be used to correct mistakes.
+
+Note that this is the only mode in which the name of the database file
+being editted is displayed. This provides a ready means of checking to
+see that the editor is actually back in the command mode.
+.page
+
+
+3.4)	FORM ENTRY MODE
+
+In this mode, the editor will display a form on the screen. The operator
+can enter or delete any data on the displayed form. The cusor is placed
+in the currently activated field, and all insertions and deletions of
+characters occure at the position marked by the cusor.
+
+Any normal character typed will be inserted in the currently activated
+field, at the position marked by the cusor. If an illegal character is
+typed (ie attempting to place a alphabetic character in a numeric field)
+the bell will be sounded, and the illegal character is discarded. The
+following special keys are supported in this mode
+
+.indent 5
+The DELETE key will cause the character to the left of the cusor to be
+deleted, and all following characters to be moved left one position.
+
+The ^U key will cause the contents of the currently active field to be
+erased.
+
+The TAB key will cause the next field to be activated. The currently
+active field is deactivated. If the next field is protected, it is
+skipped over. If no more unprotected fields exist, then the FORM ENTRY
+MODE is exitted.
+
+The <CR> key will cause the FORM ENTRY MODE to be exited. Control passes
+back to the next higher mode.
+
+The CUSOR UP and CUSOR DOWN keys cause the cusor to jump to the top and
+bottom (extreme left and right) of the currently activated field.
+
+The CUSOR LEFT and CUSOR RIGHT keys cause the cusor to move left or right
+one position. (Note that the cusor cannot be moved outside the display
+area of the currently activated field).
+.indent 0
+
+The operation of the editor in this mode is relatively simple, and there
+is no trouble in driving it. It is suggested that the user play in this
+mode for a couple of minutes to become familiar with the functions
+available. In illegal data is placed within a field, the editor will
+display an error message and request that the offending data be editted
+or reentered.
+.page
+
+
+3.5)	FORM ENTRY COMMAND MODE
+
+If an existing record is being editted, or a new record created, upon
+exit from the FORM ENTRY MODE, control passes to the FORM ENTRY COMMAND
+MODE. In this mode, the user is provided with a number of options, to
+allow him to decide on what is to be done with the record.
+
+.indent 5
+The EXIT command will cause the record to be filed away, and control is
+returned to the EDITOR COMMAND MODE. Any changes made to the record become
+permanent. Simply typing a <CR> is equivalent to typing EXIT.
+
+The ABORT command will return control to the EDITOR COMMAND MODE, without
+saving the record. Any changes made to the record will therefore be 
+discarded.
+
+The TOP and FIRST commands will cause the FORM ENTRY MODE to be reentered.
+The first field is activated for editting.
+
+The EDIT command causes the FORM ENTRY MODE to be reentered. The field
+last activated is re-activated, thereby effectively resumming the field
+editting where it was terminated.
+
+The ERASE command causes the contents of all unprotected fields to be
+erased. This allows the user to discard all data typed in, and to restart.
+
+The REFRESH command causes the picture on the screen to be repainted. This
+is provided in the event that the picture is lost (ie due to a loss of
+power to the terminal).
+
+The LOCATE command is provided to allow quick activation of a specific
+field. If the last field in a large record has to be changed, the LOCATE
+command can be used to quickly access the desired field. Once LOCATE
+has been typed, the operator is requested to enter the name of the
+desired field. Simply type in the field name, and it will be activated
+for editting. Protected fields cannot be activated, and an attempt to
+do so will result in an error message.
+.indent 0
+
+The list of available commands for this mode are displayed on the second
+topmost line of the screen. The minimal abriviation for each command is
+displayed in upper case.
+.page
+
+
+3.6)	RECORD LOCATION MODE
+
+In this mode the editor displays a special form. The data typed into
+this form will be used to locate a desired record. The user places
+data into a chosen field in this form. Operation in this mode is as
+per the FORM ENTRY MODE. Once the data has been placed in the field,
+the computer will search for all records which have the same data in
+their corresponding field. For example, in the personal example
+previously described, if it is desired to access all records corresponding
+to personal with a surname of JIMBO, the letters JIMBO are placed in
+the surname field, and a <CR> is typed.
+
+The computer will then check all records within the database. If no
+matching records are found, an error message is typed. If only one
+matching record is found, the desired record is activated for INSPECTION,
+EDITING or DELETION, as required.f more than one matching record is
+found, the editor will display them one at a time, each time allowing
+the operator to decide if the displayed record is to be accepted or
+rejected as the match.
+
+In the event that more than one record meets the match critrion, the
+editor will display the matching records one at a time. Each time a new
+record is displayed, the operator is asked to either accept or reject
+the record as being the desired one. The operator may enter any of the
+following valid responses
+
+.indent
+If ACCEPT is typed, then the currently displayed record will be accepted
+as the one being searched for.
+
+If NEXT is typed, then the next record is displayed. If no more matching
+records are available, then the search operation is aborted.
+
+If ABORT is typed, then the search operation is terminated, and it is
+assumed that no matching record was found.
+.indent 0
+
+Note that if more than one matching record is found, the editor displays
+the number od remaining matchs on the second topmost line. This provides
+the operator with an indication of the number of records still to be
+viewed.
+.page
+
+
+.RMARGIN 78.
+.LMARGIN 1.
+.TABS 8.,16.,24.,32.,40.,48.,56.,64.,72.
+.FORMAT
+.JUSTIFY
+
+.SCENTER
+CHAPTER 4 - REPORT GENERATION
+
+The steps required to generate the database files and to create the
+editor required to manipulate the records within the database have
+been detailed above. This chapter discusses the steps required to
+generate the REPORT GENERATION package. The report gerneration facilities
+allow specific records to be selected, sorted and displayed in a
+user specified format. The report package consists of the following
+files
+
+.indent 5
+SELECT.SAV, a program which allows the user to select specific records
+out of the database. The report will be generated for only those records
+selected.
+
+SORTER.SAV, a sorting program, which will sort the selected records into
+an order specified by the user.
+
+REPORT.SAV, a program will which actually produce the report. This program
+accepts as inputs the selected records and a template defining the report
+layout.
+
+SORTER.DAT, a work file used by the above three programs to pass data.
+.indent 0
+
+The programs in the report package pass control to each other by chaining.
+The MENU program chains to SELECT, which in turn chains to SORTER, which
+in turn chains to REPORT. After the report has been produced, control
+returns to the MENU.
+
+The SORTER.SAV program is provided on the database distribution kit, and
+needs only to be copied onto the work disk. The SELECT and REPORT files
+are supplied in object form, and need only be linked with the TEMPLATE.
+The SORTER.DAT file is created with the following RT11 command, or its
+equivalent
+
+.scenter
+CREATE SORTER.DAT[20]
+
+Normally, 20 blocks will be adequate. If a particular application requires
+a work file greater than 20 blocks (an error message will be generated if
+this is the case), simply increase the size of the file.
+.page
+
+
+4.1)	THE SELECT PROGRAM
+
+This is a fortran program. It is supplied in both source and object
+format. (The object module must be re-compiled on RSTS/E systems.)
+The distribution version only has one selection criterion; it can
+only select all ACTIVE records. The source has been provided to allow
+the user to put in his own selection criterions. This is very easy to
+do.
+
+4.1.1)	GENERATING THE SELECT PROGRAM
+
+The  steps required to generate this program are detailed below.
+The RT11 commands are listed below
+
+.SCENTER
+FORTRA SELECT
+
+.SCENTER
+LINK SELECT,XXXXXX,DBSLIB,SY:FORLIB
+
+where XXXXXX is the name of the database TEMPLATE file.
+
+4.1.2)	RUNNING THE SELECT PROGRAM
+
+Upon activation, the select program request the operator to enter the
+selection criterion. Unless the program is modified by the user, the
+only valid answer is 'ALL ACTIVE' records, indicated by entering
+
+.scenter
+A<CR>
+
+The user is next requested to enter the sort criterion. This is done
+by typing in the name of any one field defined in the record template.
+The report will be ordered by the contents of this field.
+
+Once these two responses are entered, the program will scan the database,
+placing the sort field information into the SORTER.DAT work file. The
+SORTER.SAV program is then invoked to sort the data, after which control
+passes the the report generator.
+.page
+
+
+4.2)	THE REPORT PROGRAM
+
+This program will actually produce the report. It is supplied in
+object format, and must be linked with the database TEMPLATE. This
+is done with the following RT11 command, or its equivalent
+
+.scenter
+LINK REPORT,XXXXXX,DBSLIB
+
+where XXXXXX is the name of the database template.
+
+
+This program is chained to by the SORTER. It accepts the contents
+of the work file as an input, and produces a report file. The format
+for the report is specified in a template file, which will be termed
+the report LAYOUT file. Before the report generator is run, SELECT
+must to executed to select which records are to be displayed, and
+the LAYOUT file created.
+
+The default name for the LAYOUT file is XXXXXX.FRM, and the default
+name for the report is LST:XXXXXX.LST. The logical name LST: must
+be assigned to a valid output volume before the REPORT.SAV program
+is executed, and, under RT11, the device handler for this volume
+must be loaded with the RT11 LOAD command.
+
+Upon activation, the program checks to see if a file with the name
+XXXXXX.FRM exists on the device DK:. If such a file exists, it is used
+as the LAYOUT template. If the file does not exist, the operator is
+requested to enter the name of the LAYOUT file. The program will then
+process the selected records, procuding the file LST:XXXXXX.LST.
+
+The REPORT program was designed to provide the user with a flexible, and
+"relatively" simple method of producing reports. It can also be used to
+produce letters, labels etc. Unfortuneately, because of its flexiblity,
+it requires a fair amount of work to understand its method of operation,
+and to learn the command langauge used to define the LAYOUT. (Users
+already familiar with RUNOFF, or one of its derivaties, will find it
+easier to master the LAYOUT DEFINITION LANGUAGE.)
+.page
+
+
+
+4.2.1)	OPERATIONAL DESCRIPTION OF REPORT GENERATOR
+
+The report generator uses an input and an output stream. The program
+obtains a character from the input stream, translates it if necessary,
+and sends it to the output stream. The input and output stream can
+be dynamically connected to any one of a number of I/O channels supported
+by the program.
+
+Initially, the input stream is connected to the LAYOUT file, and the
+output stream to the file LST:XXXXXX.LST. The program commences exectution
+in the PHASE 1 MODE, and will start transfering the contents of the input
+stream to the output stream, a character at a time. Commands to the program
+are prefixed with the DOLLAR symbol ($). All commands consist of the symbol
+$, followed by a single letter, which indicates the function to be preformed.
+The sequence of letters $?, where ? is any valid function specifier, is called
+a control sequence.
+
+The program supports a number of other channels, each represented by a
+single letter, to which I/O operations can be dirrected. The auxilary
+channels are listed below.
+
+.indent 0
+Both the input and output streams can be connected to the terminal. The
+TERMINAL is represented by the @ symbol. This allows the program to
+interact with the operator.
+
+Both the input and output streams can be connected to memory variables,
+which are represented by the letters A-Z. This allows data to be stored
+and later retrieved. A number of functions are also provided to allow
+data stored in variables to be manipulated. Note that each variable
+is capable of storing upto 254 charcaters only.
+.indent 0
+
+The symbol ! is used to represent the default input and output channels,
+the LAYOUT file, and the LST:XXXXXX.LST file respectively. Note that as
+the input stream can never be connected to LST:XXXXXX.LST, and the output
+stream can never be connected to the LAYOUT file, the use of the ! symbol
+to represent the default input and output channels should not lead to
+confusion on the part of the user.
+.page
+
+
+4.3)	CONTROL SEQUENCES
+
+The LAYOUT file can contain control sequences, which dirrect the program
+to preform special functions. A list of valid control sequences is
+shown below
+
+.indent 5
+The $C sequence is used to mark indicate the start of a comment.
+
+The $D sequence will be replaced by the current system data.
+
+The $E sequence is used to check for an end of data condition.
+
+The $F sequence is used to open a new default output file.
+
+The $P sequence will be replaced by the current page number.
+
+The $O sequence is used to redirrect output.
+
+The $I sequence is used to redirrect input.
+
+The $N sequence is used to obtian the next record to be proceesed.
+
+The $< sequence is used to indicate the start of a data substitution
+operation. The sequence is replaced with the data stored in the field
+specified.
+
+The $= sequence is used to test whether the contents of two variables are
+the same.
+
+The $# sequence is used to test whether the contents of two variables are
+different.
+
+The $" sequence is used to temporarily inhibit output, to allow complexe
+commands to be commented.
+
+The $\ sequence is used to indicate the end of a phase.
+.indent 0
+
+The program will also recognize two other symbols beside the $ as special
+characters. These are the ^ and the _ symbol. The ^ symbol will cause the
+next character to be treated as a control character. The _ symbol will cause
+the next character not to be treated as a special character, and must be
+used to prefix the $, ^ and _ symbols if it is desired to pass them to
+the output stream.
+.page
+
+
+4.3.1)	THE $C CONTROL SEQUENCE
+
+The $C sequence is used to indicate the start of a comment. The program
+will ignore all characters, starting from the $C, upto and including the
+<CR><LF> which marks the end. Use the sequence liberally to comment your
+LAYOUT file.
+
+
+4.3.2)	THE $D CONTROL SEQUENCE
+
+The $D sequence, when encountered, is replaced with the current system
+date, in the format
+
+.scenter
+DD/MM/YY
+
+.unformat
+.unjustify
+where
+	DD	are two digits, representing the day of the month
+	MM	are two digits, representing the month of the year
+	YY	are two digits, representing the year
+.format
+.justify
+
+This sequence can be used anywhere in the template, to represent the
+date upon which the report was generated.
+
+
+4.3.3)	THE $E CONTROL SEQUENCE
+
+The $E sequence will cause the program to check to see if all selected
+records have been proceesed. If all records have been processed, program
+execution is terminated. If more records are to be processed, the sequence
+is ignored.
+
+
+4.3.4)	THE $F CONTROL SEQUENCE
+
+The $F sequence is used to open another file for output in place of
+LST:XXXXXX.LST. This command must be placed at the start of the LAYOUT
+file, on a line by itself. The name of the new output file must follow
+the $F sequence, and must be in standard RT11 format. This sequence
+will be processed only on the first pass, and will be treated as a
+comment ($C) on subsequent passes. The following command will
+cause the file DEMO.LST to be used for output in place of the default
+file LST:XXXXXX.LST
+
+.SCENTER
+$FDEMO.LST
+
+.page
+
+
+
+
+4.3.5)	THE $P CONTROL SEQUENCE
+
+The $P sequence, when encountered, will be replaced with a four digit
+page number. The page number is initially set to 1, and is incremented
+each time PHASE 2 is exited.
+
+
+4.3.6)	THE $O CONTROL SEQUENCE
+
+The $O sequence is used to connect to output stream to another channel.
+The sequence must be followed with one of the valid channel designators,
+!, @ or A-Z. Output will be dirrected to the specified channel until a
+new $O sequence is encounter, or untill PHASE 1 is re-entered, at which
+time output is automatically redirected to the ! channel. Note that each
+time a variable is selected for output, all data previously stored in it
+is lost. Below are a few examples of how this command can be used
+
+.unformat
+.injustify
+	$O@ HELLO THERE $O!	$C SEND 'HELLO THERE' TO TERMINAL
+
+	$OA HELLO THERE $O!	$C STORE 'HELLO THERE' IN VARIABLE A
+
+	$OA a $OB b $OC c $O!	$C STORE a b c IN VARIABLES A B C
+.FORMAT
+.JUSTIFY
+
+
+4.3.7)	THE $I CONTROL SEQUENCE
+
+The $I sequence is used to connect the input stream to another channel.
+The sequence must be followed by a valid channel specifier, and the
+connection remains in effect untill PHASE 1 is reentered, or an end
+of file mark is detected on the channel (for channels @, A-Z). There
+are some differences between how the input from the ! channel is handled
+compared to the @ and A-Z channels. Input obtained from the @ and A-Z
+channels is not translated, and as such control sequences inbedded within
+the inputs from these channels are not recognized, and are sent to the
+output stream. The input stream is automatically reconnected to the
+! channel when all data stored in a variable is read, or when the
+operator types a ^Z on the termianl. Read the data in a variable does
+not destory the data. Below are examples on using this command
+
+.unformat
+.unjustify
+	$O@ SAY SOMETHING? $O!	$C PROMPT OPERATOR FOR INPUT
+	$I@			$C GET INPUT AND SEND TO ! CHANNEL
+
+	$O@ ENTER HEADING? $OA	$C PROMPT FOR HEADING
+	$I@ $O!			$C GET HEADING AND STORE IT IN VAR A
+
+.FORMAT
+.JUSTIFY
+.page
+
+
+
+4.3.8)	THE $N CONTROL SEQUENCE
+
+The $N sequence causes the program to activate the next record to be
+processed. Data can only be obtained from the currently activated
+record. The first $n command encountered will activate the first
+record to be processed, and sebsequent $N commands activate the
+next records. If a $N sequence is encountered in PHASE 2, and no
+more records have to be processed, the $N is treated as a nop. If it
+is desired to terminate immediately when all records have been
+processed, use the $E sequence. Note program execution is termianted
+in PHASE 1 if all records have been process.
+
+
+4.3.9)	THE $< CONTROL SEQUENCE
+
+The $< sequence is used to obtain data from the currently activated
+record. The general format of this sequence is
+
+.scenter
+$<NAME?
+
+.unformat
+.unjustify
+where	NAME	is the logical name of the field whose data you wish to
+		access
+
+	?	is a one of the legal delimiters > or <
+.format
+.justify
+
+The NAME argument must match the name of a field defined in the database
+TEMPLATE. All characters between the $< and the closing delimiter are
+taken to be part of the name (including spaces, tabs, dollar sign etc).
+If the specified field is not in the TEMPLATE, a ???? appears in the
+output.
+
+Two legal delimiters can be used to terminate the sequence. These
+are used to control trimming of .ASC. and .ALP. fields. If the '>'
+delimiter is used, The $<NAME> sequence is replaced with the whole
+contents of the specified field, including trailing spaces. If the
+$<NAME< sequence is used, the sequence is replaced with the contents
+of the specified field, but all trailing spaces are removed. As an
+example, consider a database which includes a 20 character STREET and
+SUBURB field, and a POSTCODE field. Below is demonstrated the
+effect of the twp delimiters-
+
+.UNFORMAT
+.UNJUSTIFY
+$<STREET>, $<SUBURB>, $<POSTCODE> 
+	-> 212 JEE ST.         , NORTH BAY           ,  4444
+$<STREET<, $<SUBURB<, $<POSTCODE< 
+	-> 212 JEE ST., NORTH BAY,  4444
+.FORMAT
+.JUSTIFY
+
+Note that all numeric fields will be replace with a 5 character field.
+The number will be right justified, with leading zeros converted to
+spaces. Date fields are inserted as 8 character fields in the standard
+format DD/MM/YY.
+.page
+
+
+4.3.10)	THE $= CONTROL SEQUENCE
+
+
+The $= control sequence is used to test whether two variables contain
+identical strings. This sequence is recognized only in PHASE 2. If the
+two strings are identical, then PHASE 2 is termianted, and PHASE 1
+is reentered. If the two strings are not identical, the sequence is
+ignored. This sequence is of value when it is important that only
+records with a common field be displayed on the same page. The two letters
+representing the variables to be tested must immediately follow the $=
+sequence. An example of the use of this sequence would be as follows
+
+.unformat
+.unjustify
+	$N $OA $<SURNAME> $O!	$C SURNAME --> A
+	.......			$C PRODUCE REPORT
+	$N $OB $<SURNAME> $O!	$C NEXT SURNAME --> B
+	$=AB			$C TERMINATE PHASE 2 IF SURNAMES DIFFERENT
+.FORMAT
+.JUSTIFY
+
+Note that if the two variables hold identical strings, PHASE 2 is
+terminated, the record last activated is de-activated, and placed
+at the start of the list of records still to process. This ensures that
+the next $N sequence will re-activate the record once again.
+
+
+4.3.11)	THE $# CONTROL SEQUENCE
+
+The $# control sequence is used to compare the contents of two variables,
+the names of which must immediately follow the $# sequence. If the two
+variables hold identical strings, the sequence is ignored. If the two
+variables hold different strings, PHASE 2 is terminated, and PHASE 1
+reentered. This command is valid only in PHASE 2, and operates in
+the same manner as the $= sequence.
+
+Note that this sequence was added to complement the $# sequence, and not
+because there was a need for it. If anyone finds a use for it, GREAT!
+
+.page
+
+
+4.3.11)	THE $" SEQUENCE
+
+The $" sequence is used to disable output to the ! channel. Its intended
+use is to allow complexe command sequences to be formatted and commented,
+without needing to worry about the output being effected. Once a $" is
+encounter, all output to the ! channel is suppressed, untill another
+$" is encountered, or PHASE 1 is re-entered. Note that output to the
+other channels is not effected. Below is an example on how this
+sequence can be used
+
+.unformat
+.unjustify
+$"					TURN OFF OUTPUT
+$N $E					GET NEXT RECORD AND TEST FOR EOD
+$OA<SURNAME>$O!			STORE SURNAME IN 'A'
+$O@WANT REPORT FOR $IA (YES NO) ? $O!	ASK OPERATOR IF WANT REPORT
+$OB$I@$O!				SAVE REPONSE IN 'B'
+$OCNO$O!				PLACE A "NO" IN 'C'
+$=BC					IF OPERATOR SAID NO -> TERMINATE
+$"$C					TURN ON OUTPUT
+.format
+.justify
+
+
+
+4.3.12)	THE $\ CONTROL SEQUENCE
+
+The $\ sequence is used to terminate a mode. If a $\ is encountered in
+PHASE 1, then control passes to PHASE 2. If a $\ is encountered in
+PHASE 2, the layout file is re-wound, and control passes back to PHASE 1.
+The first phase is intended to be used to produce page headings, while
+the second phase should be used to process the records.
+
+Note that the second $\ rewinds the LAYOUT file, thereby effectively
+restarting the output process. Below is a demonstation on the use of
+this sequence
+
+.unformat
+.unjustify
+^L	DEMO REPORT			$C NEW PAGE/HEADING
+DATE	$D				$C INCLUDE DATA
+PAGE	$P				$C INCLUDE PAGE NUMBER
+$\					$C ENTER PHASE 2
+$N$E					$C GET NEXT RECORD
+$<SURNAME> $<JOB CODE>			$C OUTPUT DATA
+
+$N$E					$C GET NEXT RECORD
+$<SURNAME> $<JOB CODE>			$C OUTPUT DATA
+
+$N$E					$C GET NEXT RECORD
+$<SURNAME> $<JOB CODE>			$C OUTPUT DATA
+
+$\					$C RE-ENTER PHASE 1
+.unformat
+.unjustify
+.PAGE
+

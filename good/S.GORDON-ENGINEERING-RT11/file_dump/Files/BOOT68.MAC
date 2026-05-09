@@ -1,0 +1,260 @@
+;	BOOT68.MAC - A PROGRAM TO LOAD MOTOROLA
+;	68HC11 MCU'S IN BOOTSTRAP MODE.
+;
+;	This PDP11 program accepts the name of
+;	a .LDA format 68HC11 binary program
+;	file with starting address 0000
+;	and sends 257. bytes held in a buffer in
+;	PDP11 memory to the 68HC11 serial
+;	comms port. (First char is FFH=377 to
+;	initialise the receiving bootstrap,
+;	remainder can be any program up to 256
+;	bytes long)
+;--------------------------------------------------------
+	.MCALL	.CSIGEN, .PURGE, .READW, .PRINT
+	.MCALL	.TTYOUT, .SRESET, .EXIT
+;
+	ERRBYT	= 52		;
+;
+	.PSECT
+START:	CLR	SICSR		;Ensure serial port interrupts
+	CLR	SOCSR		;both disabled.
+	.CSIGEN	#DSPACE,#DEXT	;get input file (bootprog.LDA) as channel #3.
+	.PURGE	#0		;no output channels
+	.PURGE	#1		;no output channels
+	.PURGE	#2		;no output channels
+	CLR	INBLK		;clear block count
+	CLR	OUTCTR		;clear output buffer counter
+	MOV	#OUTBUF,OUTPTR	;initialise output buffer pointer
+	CLR	NXTADR		;init next-byte load location variable
+	MOV	SP,OLDSP	;Save SP for emergency exits etc.
+	;
+	JSR	PC,READ		;Get first block
+	;
+	MOV	OUTPTR,R2	;R2 keeps place in outbuffer
+	MOV	#INBUF,R1	;R1 points start of fresh inbuffer
+	;
+PACKET:	CLR	CHKSUM		;Clear packet checksum
+	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally
+	CMPB	#1,(R1)+	;look for 001 to start
+	BEQ	OK001		; .LDA packet must start 001, 000
+	.PRINT	#ERR001		;
+	JMP	ERRXIT		;Quit
+OK001:	DEC	INCTR		;count off input buffer
+	BEQ	RDNEW		;If empty, go read another block
+	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally
+	CMPB	#0,(R1)+	;look for 000 2nd byte.
+	BEQ	OK000		;Err message if not
+	.PRINT	#ERR000		;
+	JMP	ERRXIT		;Quit
+OK000:	DEC	INCTR		;count off input buffer
+	BEQ	RDNEW		;If empty, go read another block
+	;
+	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally
+	MOVB	(R1)+,PKTCNT	;Third = LSB of No of bytes
+	DEC	INCTR		;count off input buffer
+	BEQ	RDNEW		;If empty, go read another block
+	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally
+	MOVB	(R1)+,PKTCNT+1	;Fourth = MSB of No of bytes
+	DEC	INCTR		;count off input buffer
+	BEQ	RDNEW		;If empty, go read another block
+	CMP	#6,PKTCNT	; 6 => Jumpaddress (nondata) packet.
+	BEQ	SEND		;Ignore rest of file if jump packet.
+	BLO	PKBASE		;Continue if > 6 bytes
+	.PRINT	#ERRLT6		; R3 < 6  => something wrong.
+	JMP	ERRXIT		;Quit
+	;
+PKBASE:	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally
+	MOVB	(R1)+,PKTBAS	;Packet base address
+	DEC	INCTR		;count off input buffer
+	BEQ	RDNEW		;If empty, go read another block
+	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally
+	MOVB	(R1)+,PKTBAS+1	;base adrs msbyte
+	DEC	INCTR		;count off input buffer
+	BEQ	RDNEW		;If empty, go read another block
+	INC	PKTNUM		;Keep count of packets
+	CMP	#1,PKTNUM	;Is it first packet?
+	BNE	CONSEC		;If not, skip zero load base test
+	TST	PKTBAS		;Else check for zero base address
+	BEQ	OKADR		;
+	.PRINT	#ERRADR		;Not valid 68HC11 boot if not 0000 base.
+	JMP	ERRXIT		;Quit
+OKADR:	SUB	#6,INCTR	;Count off preamble bytes contained
+CONSEC:	SUB	#6,PKTCNT	;in ID,CNT,ADRS words.
+	MOV	R2,NXTADR	;Form nextadress from place in outbuf
+	SUB	#OUTBUF,NXTADR	;taking off base offset.@@Why not by incrs?
+	CMP	NXTADR,PKTBAS	;Is next load loc'n = pkt base adrs?
+	BEQ	PKDATA		;
+	.PRINT	#ERRCSC		;If not, error - not consecutive.
+	JMP	ERRXIT		;Quit
+	;
+PKDATA:	MOVB	(R1),TEMP	;(to avoid odd byte add attempt)
+	ADD	TEMP,CHKSUM	;Keep checksum tally, add data byte.
+	DEC	PKTCNT		;Keep track of packet bytes parsed
+	BPL	TFRDAT		;If more data, skip chksum test
+	INC	R1		;Else pointer skips sum, gets next pkt start
+	DEC	INCTR		;count (checksum) byte off input buffer
+	BEQ	RDNEW		;If inbuf empty, go read another block
+	TSTB	CHKSUM		;We have added packet chksum byte -
+	BNE	BADSUM		;If bad, skip out
+	JMP	PACKET		;If OK, start reading a new packet
+BADSUM:	.PRINT	#ERRSUM		;error - bad packet sum if nonzero;
+	JMP	ERRXIT		;Quit
+	;
+TFRDAT:	MOVB	(R1)+,(R2)+	;All tests passed, transfer data
+	DEC	INCTR		;count off input buffer
+	BNE	PKDATA		;If not empty, go read another byte
+	;			;else -
+RDNEW:	JSR	PC,READ		;first read another block
+	BR	PKDATA		;then continue processing data bytes
+;
+;
+SEND:	.PRINT	#MSGSND		;Tell operator we are sending
+	MOV #OUTBUF,R1		;Point to output buffer
+	MOVB #377,SODAT		;Send FFh to initialise 68HC11
+	MOV #256.,OUTCTR	; 256. bytes to fill HC11 RAM
+	;
+LOOP:	TSTB SOCSR		;Output buffer ready?
+	BPL LOOP		;Loop til byte done
+	MOV	#6000,DLYCTR	;Delay between bytes
+DLY:	DEC	DLYCTR		;
+	BNE	DLY		;
+	MOVB (R1)+,SODAT	;Send another byte
+	DEC OUTCTR		;until 256. have gone
+	BNE LOOP		;
+;
+	CLR	RCVCTR		;(Count incoming bytes)
+RECEV:	CLR	TIMOUT		;
+RETRY:	TSTB	SICSR		;Any data come in?
+	BMI	RECVD		;Skip timeout test if so
+	DEC	TIMOUT		;timeout counting
+	BNE	RETRY		;Loop til 65535. counts	
+	.PRINT	#MSGQUI		;Indicate 68HC11 quiet.
+	TST	RCVCTR		;Any bytes received?
+	BEQ	NONE		;
+	JSR	PC,DECIML	;else say
+	.PRINT	#MSGAFT		;after
+	.PRINT	#CNTBUF		;how many (decimal)
+	.PRINT	#MSGBYT		;bytes.
+	BR	EXIT		;and go home
+NONE:	.PRINT	#MSGNON		;say none.
+	BR	EXIT		;and go home.
+	;
+RECVD:	.TTYOUT	SIDAT		;Send raw received data to TT:
+	INC	RCVCTR		;keep count of bytes
+	BR	RECEV		;look for more
+;
+ERRXIT:	MOV	OLDSP,SP	;Restore initial SP for wild exit on error
+	;
+EXIT:	.PRINT	#MSGEND		;Program termination message
+	.SRESET			;Clean up and
+	.EXIT			;return to monitor.
+;
+;
+READ:	.READW	#AREA,#3	;read a block of (first) input channel 3
+	BCC	OK		;skip if no errors nor eof.
+	TSTB	@#ERRBYT	;was it eof?
+	BNE	RDERR		;Error if @#52 not clear.
+	CMP	(SP)+,(SP)+	;Fix SP in lieu of RTS PC and
+	JMP	SEND		;go write bootstrap into 68HC11.
+	;
+RDERR:	.PRINT	#ERREAD		;else error message
+	JMP	ERRXIT		;Quit
+	;
+OK:	MOV	WCNT,INCTR	;No of words in block read
+	ASL	INCTR		;change to bytes for count(down)
+	INC	INBLK		;pointer ready for next block read.
+	RTS	PC		;return to packet service
+;
+;
+DECIML:	MOV RCVCTR,R1		;16 bit number to decode
+	BR DCONV5		;convert rcvctr to ascii ddddd.
+	;
+	;integer to decimal conversion (EX lister)
+	;
+DCONV3:	MOV	#3,R0		;3 characters
+	BIC	#177400,R1	;only low byte
+	MOV	#DTABLE+4,R3	;point to 100's
+	BR	DCON.A
+DCONV5:	MOV	#5,R0		;5 characters
+	MOV	#DTABLE,R3	;point to 10000's
+DCON.A:	MOV	#CNTBUF,R2	;point to buffer
+DCON.B:	CLR	R5		;result
+DCON.C:	INC	R5		;update
+	SUB	(R3),R1		;larger ?
+	BCC	DCON.C		;if so - loop
+	DEC	R5		;final result
+	ADD	#60,R5		;make ascii
+	MOVB	R5,(R2)+	;save character
+	ADD	(R3)+,R1	;restore value
+	DEC	R0		;all characters done ?
+	BNE	DCON.B		;if not - loop
+	MOVB	#200,(R2)+	;termination byte
+	RTS	PC		;finished
+	;
+;
+;
+;
+;---------------------------------------------------------------
+;
+DEXT:	.RAD50	/LDA/		;default input filext (csigen)
+	.WORD	0,0,0		;no output filespecs
+	;
+OLDSP:	.WORD	0		;SP at entry kept for wild exits
+	;
+AREA:	.WORD	0		;emt 5-word block (readw reqst)
+INBLK:	.WORD	0		;including: - block count,
+	.WORD	INBUF		; - input buffer base address,
+WCNT:	.WORD	256.		; - block transfer word count
+	.WORD	0		; - terminating zero word.
+	;
+INCTR:	.WORD	0		;input buffer byte counter
+OUTCTR:	.WORD	0		;output buffer byte counter
+OUTPTR:	.WORD	0		;output buffer next byte pointer
+NXTADR:	.WORD	0		;68HC11 next byte load address
+CHKSUM:	.WORD	0		;packet rolling checksum
+TEMP:	.WORD	0		;Temporary byte store to add bytes
+PKTNUM:	.WORD	0		;Packet bytecount ex preamble
+PKTBAS:	.WORD	0		;Packet baseadrs ex preamble
+PKTCNT:	.WORD	0		;Packet byte downcounter
+	;
+INBUF:	.BLKW	256.		;input buffer
+	;
+OUTBUF:	.BLKB	256.		;bootload of 256 bytes.
+	;
+DLYCTR:	.WORD	0		;Inter byte delay
+RCVCTR:	.WORD	0		;Counts bytes received from 68HC11
+TIMOUT:	.WORD	0		;Counts out while waiting for bytes.
+DTABLE:	.WORD	10000.,1000.,100.,10.,1.	;conversion table
+	;
+CNTBUF:	.BLKB	10		;ASCII receive count formation buffer
+	;
+	SICSR = 176510		;Serial port address. PATCH AS REQUIRED
+	SIDAT = SICSR + 2
+	SOCSR = SICSR + 4
+	SODAT = SICSR + 6
+	;
+ERREAD:	.ASCIZ	<15><12>/??? READ ERROR ???/
+ERR001:	.ASCIZ	<15><12>/??? NOT .LDA FORMAT - FIRST BYTE NOT 001 ???/
+ERR000:	.ASCIZ	<15><12>/??? NOT .LDA FORMAT - SECOND BYTE NOT 000 ???/
+ERRADR:	.ASCIZ	<15><12>/??? NOT 68HC11 BOOTSTRAP - NONZERO BASEADDRESS ???/
+ERRLT6:	.ASCIZ	<15><12>/??? ERROR - .LT 6 BYTES IN .LDA PACKET ???/
+ERRSUM:	.ASCIZ	<15><12>/??? .LDA PACKET CHECKSUM ERROR ???/
+ERRCSC:	.ASCIZ	<15><12>/??? BOOTSTRAP FAULTY - NONCONSECUTIVE ADDRESSES ???/
+MSGSND:	.ASCIZ	<15><12>/Sending boot to 68HC11 - Any returned ASCII follows:/
+MSGQUI: .ASCII	<15><12>/68HC11 serial out quiet /<200>
+MSGAFT:	.ASCII	/after /<200>
+MSGNON:	.ASCIZ	/- NO bytes received/
+MSGBYT:	.ASCIZ	/. bytes received/
+MSGEND:	.ASCIZ	/Bootloader program terminating/
+	.EVEN
+;
+DSPACE	=.			;handlers can go here (for csigen reqst)
+	.END	START
+                                                                                                                                                     

@@ -1,0 +1,148 @@
+.Comment COMPAG manual 14-Aug-81
+.comment C G Wilson, 71 Galatea St, Charleville 4470, Australia.
+.nhd
+.nf
+.Title COMPAG Manual
+.ps,60
+.fg 4
+.c;COMPAG
+.C;------
+.S 2
+.C;V4
+.S
+.C;A Page Combining Utility
+.s
+.c;Manual Edition 3
+.c;14-Aug-81
+.s
+.c;C G Wilson, 71 Galatea St, Charleville 4470, Australia.
+.s 3
+.f
+COMPAG provides the ability to easily combine pages so they may be spread
+across a printer form rather than taking up a page each.  It can cope with
+up to 8 columns within the output page, the size of each column being
+determined by the width of that page.  Alternatively a series of left margins
+may be specified, one for each column in sequence.
+.s
+Tab conversion is usually performed on the output file, to reduce size.
+This uses the DIGITAL standard for hardware tabs.  Underscoring in the
+input file will be retained in the output.
+.s
+There is no provision for resequencing a file in a manner suitable for
+booklet production.  This must be performed (eg by a TECO macro) before
+applying COMPAG.
+.s
+COMPAG requires the file I/O utility IO.MAC (also provided on this
+distribution disc), and may use the file KEV11.MAC for assembly for a
+system with a KEV11 extended arithmetic option.
+.Header Mixed
+.Page
+.hl 1;Using COMPAG:
+Compag is run by typing
+.s
+.ts 10
+	.R COMPAG
+.br
+	*
+.s
+It expects a standard RT-11 CSI command line in reply - viz.
+.s
+####<output#file>/switches=<input#file>[,<input#file>...]
+.s
+The default input extension is .DOC, and the default output extension is .LST.
+Multiple input files are read as though they were one contiguous file.
+.hl 1;What it does:
+Input data is read and organized into pages.  A page is terminated either
+on receipt of a form-feed character or when the number of lines read in is
+sufficient to fill the length of the page (see /P switch).  The input
+lines are organized into a multi-column page for output.  The first page
+usually starts at column 0, then the second page further across the page
+horizontally, and so on until the specified number of columns has been
+filled.  Then that page is written and the next one set up.
+Thus, to get a copy of this manual with two pages on each printer page
+type:
+.nf
+.s
+	.RUN RUNOFF COMPAG COMPAG
+	.RUN COMPAG
+	*COMPAG=COMPAG
+	*
+.S
+.F
+This will produce COMPAG.LST in the desired format, for a 60 line by 132
+column printer page.
+.hl 1;Switches:
+Switches may be appended to either the output file or any of the input files.
+.hl 2;/H - help
+This switch causes printing of a list of available switches and their actions.
+Anything else on the command line is not used.
+.hl 2;/W[:n] - set page width
+This switch sets the number of columns available in the output format.  The
+default value is 132, and if /W is specified without a value, 120.
+This width is used for calculating the spread of the columns - for example
+with a 132 column page the first section will start at column 0 and the second
+(if two only are desired) will start on column 71.  With a 120 character page
+the second section will start on column 65.
+.hl 2;/P[:n] - set page length
+This sets the number of lines available in each output page.  The default
+value is 60, but becomes 46 (suitable for a teletype model 43) if /P is
+specified without a value.
+.hl 2;/B - ignore all leading blank lines
+Compag is designed to be used with RUNOFF.  Runoff has a nasty habit of
+leaving stray line-feeds at the start of each page.  Generally Compag will
+ignore this line but allow other blank lines at the start of a page.
+If /B is specified, any blank lines at the start of any page will be
+ignored.
+.hl 2;/N - ignore no blank lines
+(See discussion re /B) - If /N is specified any blank lines at the start of a
+page will be included in the output page.
+.hl 2;/T - utilize VT100 132-column mode
+This switch assumes the user is using a VT100 terminal, and is usually used
+when output is to be directed to that terminal.  Before processing the file
+it sends the codes to set the VT100 into 132 column mode, and after processing
+switches to 80 column mode.
+.hl 2;/C:n - number of columns for output format
+The default number of columns is 2.  Up to 8 columns may be specified.
+The width of each column depends on the number of columns desired
+and the width of the printer page.  The number of spaces left between
+columns depends on the number of columns specified.
+.s
+.ts 10,30
+.nf
+	Number of	Inter-column
+	Columns	Gap
+.s
+	2	12
+	3	10
+	4 or 5	8
+	6 to 8	6
+.s
+.f
+It should be noted that there is no checking of the number of columns in the
+input data.  Should this exceed the size of the column into which it is being
+formatted, it simply continues across the page where it may be written over
+by the next column, or wraps around to the next line if it passes the right
+hand margin.
+.hl 2;/L:n[:n,...] - specify left margins
+This switch allows the user to override the automatic determination of
+column positions by actually specifying where he wants the margin to be
+for each column.  The first column of a page is column 0.
+The values need not be in ascending order - if you particularly need to
+set columns up from right to left it will work in this manner, or if you
+have a basic form in one file into which you wish to insert various
+different data available in other files but with the same left hand
+margin, then /L:0:0 may be helpful.
+.hl 2;/F - force full output
+Normally tab conversion is done on the output, utilizing the Digital hardware
+standard (columns 8, 16, 24, ...).  Should it be desired to leave the output
+with multiple spaces, use the /F switch in the command line.
+.hl 2;/J - join pages
+Use of this switch inhibits insertion of form-feed characters between
+pages.  (This was included to allow tab conversion without pagination
+using switches /J/L:0 on files containing many spaces but no form feeds!)
+.hl 1;Underscoring:
+The underscore character ("__", ascii 137) is recognized, and characters
+underscored (either by an overprinted line or by the use of backspaces)
+in the input will remain underscored (by use of an overprinting line) in
+the output.  An underscore alone will, however, be printed as a single
+character rather than on its own special line.

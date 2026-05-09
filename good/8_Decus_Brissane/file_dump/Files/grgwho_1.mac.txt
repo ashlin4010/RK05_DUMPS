@@ -1,0 +1,139 @@
+	.TITLE	WHO
+
+	.ENABL	LC
+	.NLIST	BEX
+;+
+;
+; This program comes from the DEC RSX-11M System Programmer's Course
+; It is: Exercise 2.3
+;
+; This task scans the RSX-11M terminal tables and displays 
+; information about each terminal configured in these tables.
+;
+; NOTE:-  This program assumes that the version of RSX-11M
+;         is V3.2.
+;
+; It has been modified by G. Grinton to suppress listing of
+; terminals with UIC=[0,0] (ie not logged on).
+;
+;-
+	.MCALL	EXIT$S	QIOW$C	DIR$
+	.MCALL	DCBDF$	UCBDF$	TCBDF$
+
+	DCBDF$
+	UCBDF$
+	TCBDF$
+
+
+WHO::
+	MOV	#$DEVHD,R5		;Pointer to start of dcb list
+
+DCBLP:	TST	R5
+	BEQ	END			;End of dcb list scan
+
+	CMP	#"TT,D.NAM(R5)
+	BNE	DCBCH			;If not tt dcb
+
+	CALL	UCBSCN			;Scan its UCB's
+
+DCBCH:	MOV	D.LNK(R5),R5		;Move to next dcb
+	BR	DCBLP
+
+
+END:	EXIT$S
+
+
+
+; UCBSCN - Scan UCB list
+
+;		R5 = addr of dcb
+
+
+UCBSCN:	MOV	D.UCB(R5),R4		;R4=1st UCB addr
+	MOVB	D.UNIT(R5),R3		;R3=lowest unit number
+
+UCBLP:	MOVB	R3,UNIT			;Current unit number
+	MOV	U.LUIC(R4),LUIC		;Login UIC
+	MOV	U.UIC(R4),UIC		;Current UIC
+	MOVB	U.TTYP(R4),TTYP		;Terminal type
+	MOV	U.ATT(R4),R2		;R2=TCB addr
+	MOV	T.NAM(R2),TASK		;Task name
+	MOV	T.NAM+2(R2),TASK+2
+
+	TST	R2
+	BNE	UCBDIS			;Task name valid
+
+	CLR	TASK
+	CLR	TASK+2
+
+UCBDIS:	TST	LUIC			;is Login UIC = [0,0]?
+	BEQ	NXTUCB			;yes - skip him
+
+	CALL	DISPLY			;Display UCB details
+
+NXTUCB:	ADD	D.UCBL(R5),R4		;Move to next UCB
+	INC	R3
+	CMPB	D.UNIT+1(R5),R3
+	BGE	UCBLP			;Not end of UCB list
+
+	RETURN
+
+
+
+; DISPLY - Display contents of UCB 
+
+
+
+DISPLY:	CMPB	TTYP,#TLLN
+	BLT	MVTT			;TTYP
+
+	CLR	TTYP
+
+MVTT:	MOV	TTYP,R0			;Compute terminal name string addr
+	ASL	R0
+	ADD	TTYP,R0
+	ASL	R0
+
+	ADD	#TNLST,R0
+	MOV	R0,P1			;Plug $edmsg list
+
+	MOV	#FMT,R1
+	MOV	#PBLK,R2
+	CALL	OUTPUT			;Display this terminal
+
+	RETURN
+
+
+
+
+UNIT:	.WORD	0
+
+LUIC:	.WORD	0
+
+UIC:	.WORD	0
+
+TTYP:	.WORD	0
+
+
+PBLK:
+
+P0:	.WORD	UNIT
+P1:	.WORD	0
+P2:	.WORD	LUIC+1
+P3:	.WORD	LUIC
+TASK:	.WORD	0,0
+
+
+
+FMT:	.ASCIZ	/TT%B:  Type = %6A  UIC = [%B,%B]  Task = %2R/
+
+
+TNLST:	.ASCII	/UNKNWNASR33 KSR33 ASR35 LA30S LA30P LA36  /
+	.ASCII	/VT05  VT50  VT52  VT55  VT61  LA180SVT100 /
+	.ASCII	/LA120 SCR0  USR0  USR1  USR2  USR3  USR4  /
+
+TLLN	=<.-TNLST>/6+1
+
+
+	.EVEN
+	.END	WHO

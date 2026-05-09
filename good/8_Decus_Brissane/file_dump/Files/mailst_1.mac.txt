@@ -1,0 +1,56 @@
+.TITLE MAILST
+.IDENT /V060381.1/
+;
+;
+.MCALL FORM
+;
+;
+
+	FORM	MAILST,BLOCK=-2
+
+;
+;
+	A=0
+	B=20.
+	C=50.
+
+	
+
+FIELD	B,4.	.ASC.,<..................................>	0,<NAME>
+FIELD	B,5.	.ASC.,<..................................>	0,<FIRM>
+FIELD	B,6.	.ASC.,<..................................>	0,<STREET>
+FIELD	B,7.	.ASC.,<................>			0,<TOWN>
+FIELD	C,8.	.ASC.,<....>					40.,<PCODE>
+;
+;
+.ENABL	LC
+FIELD	15.,14.	.NUM.,<DDDD>		0,<cn>,PROTECT=1
+FIELD	54.,14.	.DAT.,<XX-XX-XX>	40.,<cd>,PROTECT=1
+FIELD	15.,15.	.NUM.,<DDDD>		0,<rn>,PROTECT=1
+FIELD	54.,15.	.DAT.,<XX-XX-XX>	40.,<dd>,PROTECT=1
+FIELD	15.,16.	.ASC.,<..>		0,<st>,PROTECT=1
+.DSABL	LC
+	FORMEND
+;
+;
+
+;
+KEY	B,4.	.ASC.,<..................................>	0,<NAME>
+KEY     B,5.	.ASC.,<..................................>	0,<FIRM>
+KEY	B,6.	.ASC.,<..................................>	0,<STREET>
+KEY	B,7.	.ASC.,<................>			0,<TOWN>
+KEY	C,8.	.ASC.,<....>					40.,<PCODE>
+;
+;
+;
+;
+.ENABL	LC
+KEY	15.,15.	.NUM.,<DDDD>		0,<rn>,CHECK=9999.
+KEY	15.,14.	.NUM.,<DDDD>		0,<cn>,CHECK=9999.
+KEY	15.,16.	.ASC.,<..>		0,<st>
+.DSABL	LC
+;
+;
+	KEYEND
+;
+.END

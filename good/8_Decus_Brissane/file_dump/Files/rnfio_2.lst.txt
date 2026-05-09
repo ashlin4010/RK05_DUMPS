@@ -1,0 +1,245 @@
+RNFIO	MACRO M1113  27-JUL-87 15:49
+TABLE OF CONTENTS
+
+     2-    3	MODIFIED 2-AUG-81 C G WILSON, CHARLEVILLE, AUSTRALIA.
+RNFIO	MACRO M1113  27-JUL-87 15:49  PAGE 2
+
+
+      1						.TITLE RNFIO
+      2						.IDENT	/M02/
+      3					.SBTTL	MODIFIED 2-AUG-81 C G WILSON, CHARLEVILLE, AUSTRALIA.
+      4					;	A) ADDITION OF TWO PIECES OF RSX-DEPENDENT CODE FROM RUNOFF.MAC
+      5					;	   SPECIFICALLY THE I/O BUFFERS AND THE OPRWAT ROUTINE
+      6					;	B) MODIFICATION OF CODE REQUIRED BY COMND FOR RE-READING
+      7					;	   ENDS OF COMMANDS.  ORIGINAL CODE CAN CAUSE PROBLEMS AT
+      8					;	   IF COMMAND CROSSES BUFFER BOUNDARIES IN RT11.  CHANGE
+      9					;	   TO HAVING A TEMPORARY INPUT BUFFER TMPBUF IF NECESSARY.
+     10
+     11					;
+     12					; COPYRIGHT (C) 1976
+     13					; DIGITAL EQUIPMENT CORPORATION, MAYNARD, MASS.
+     14					;
+     15					; THIS SOFTWARE IS FURNISHED UNDER  A LICENSE FOR USE ONLY  ON  A
+     16					; SINGLE COMPUTER SYSTEM AND MAY BE  COPIED ONLY WITH  THE INCLU-
+     17					; SION OF  THE  ABOVE  COPYRIGHT NOTICE.  THIS SOFTWARE,  OR  ANY
+     18					; OTHER COPIES THEREOF, MAY NOT BE  PROVIDED  OR  OTHERWISE  MADE
+     19					; AVAILABLE TO ANY OTHER PERSON EXCEPT  FOR  USE  ON  SUCH SYSTEM
+     20					; AND TO  ONE WHO AGREES  TO  THESE LICENSE  TERMS.  TITLE TO AND
+     21					; OWNERSHIP OF THE SOFTWARE SHALL AT ALL TIMES REMAIN IN DEC.
+     22					;
+     23					; THE INFORMATION IN THIS SOFTWARE  IS  SUBJECT TO CHANGE WITHOUT
+     24					; NOTICE AND SHOULD NOT BE CONSTRUED  AS  A COMMITMENT BY DIGITAL
+     25					; EQUIPMENT CORPORATION.
+     26					;
+     27					; DEC ASSUMES NO RESPONSIBILITY FOR THE USE OR RELIABILITY OF ITS
+     28					; SOFTWARE ON EQUIPMENT WHICH IS NOT SUPPLIED BY DEC.
+     29					;
+     30					; VERSION M02
+     31					;
+     32					; AUTHOR: L. WADE 1-JUN-72
+     33					;
+     34					; MODIFIED BY:
+     35					;
+     36					;	E. POLLACK U. OF W. 19-DEC-73
+     37					;
+     38					;	D. N. CUTLER 14-SEP-75
+     39					;
+     40					; SIG MODIFICATION								;**NEW**
+     41					;	SIG01		CHANGE DEVICE FOR WAIT TO TI				;**NEW**
+     42					;	SIG02		INCORPORATE RSTS CHANGES				;**NEW**
+     43					; AUSTRALIAN MODIFICATION
+     44					;	AUST-1		INCORPORATE RSX-DEPENDENT CODE FROM RUNOFF.MAC		;%%AUST-1
+     45					;			(I/O BUFFERS AND OPRWAT ROUTINE)
+     46					; RUNOFF I/O ROUTINES
+     47					;
+     48					; MACRO LIBRARY CALLS
+     49					;
+     50															;SIG02
+     51						.MCALL	GET$S,PUT$S
+     52															;SIG02
+     53					;										;SIG02
+     54					;+										;**-17
+     55					; FILE INPUT/OUTPUT ROUTINES
+     56					;-
+     57
+RNFIO	MACRO M1113  27-JUL-87 15:49  PAGE 2-1
+MODIFIED 2-AUG-81 C G WILSON, CHARLEVILLE, AUSTRALIA.
+
+     58						.ENABL	LSB
+     59	000000	005267 	000000G		FMSGL:	INC	S1
+     60	000004	117701 	000000G		FMSG::	MOVB	@S1,R1
+     61	000010	001511 				BEQ	40$		;IF EQ NULL
+     62	000012	004767 	000012 			CALL	FOUT		;OUTPUT CHARACTER
+     63	000016	000770 				BR	FMSGL		;LOOP
+     64	000020	012701 			CRLF::	MOV	(PC)+,R1	;GET CARRIAGE RETURN AND LINE FEED
+     65	000022	   000G	   000G			.BYTE	LF,CR		;
+     66	000024	010746 				MOV	PC,-(SP)	;SET TO REPEAT OUTPUT TWICE
+     67	000026	000301 				SWAB	R1		;SWAP CHARACTER TO RIGHT BYTE
+     68	000030	110177 	001214 		FOUT::	MOVB	R1,@HFOUT+2	;STORE CHARACTER IN BUFFER
+     69	000034	005267 	001210 			INC	HFOUT+2		;INCREMENT BUFFER POINTER
+     70	000040	005367 	001206 			DEC	HFOUT+4		;ANY MORE ROOM IN BUFFER?
+     71	000044	001505 				BEQ	OUTPUT		;IF EQ NO
+     72	000046	000207 				RETURN			;
+     73	000050	005767 	001600 		FIN::	TST	TMPPNT		;SEE IF GETTING TAIL OF COMMAND	%%AUST-1
+     74	000054	001070 				BNE	RDOLDC		;YES - GO GET FROM TEMP BUFFER	%%AUST-1
+     75	000056	005367 	000720 			DEC	HFIN+4		;ANYTHING IN BUFFER?
+     76	000062	003052 				BGT	30$		;IF GT YES
+     77	000064					GET$S	#TTLDMY,#INBUF,HFIN ;INPUT A RECORD
+     78	000110	103012 				BCC	20$		;BR	IF I/O OK
+     79	000112					CMPNEB	#IE.EOF,F.ERR(R0),RDERR3 ;NOT END OF FILE?
+     80	000122	012760 	000001 	000000G		MOV	#1,F.NRBD(R0)	;SET BYTE COUNT TO 1
+     81	000130	112767 	000000G	000646 		MOVB	#EOF,INBUF	;SET EOF BYTE
+     82	000136	016046 	000000G		20$:	MOV	F.NRBD(R0),-(SP) ;GET BYTE COUNT OF LINE
+     83	000142	001004 				BNE	25$		;IF NE NOT NULL LINE
+     84	000144	112770 	000040 	000002G		MOVB	#' ,@F.NRBD+2(R0) ;INSERT A BLANK
+     85	000152	005216 				INC	(SP)		;INCREMENT BYTE COUNT
+     86	000154	016000 	000002G		25$:	MOV	F.NRBD+2(R0),R0	;AND GET THE BUFFER ADDRESS
+     87	000160	061600 				ADD	(SP),R0		;ADVANCE POINTER TO END OF CHARACTERS
+     88	000162	112720 	000000G			MOVB	#CR,(R0)+	;SET CR/LF AT END OF LINE
+     89	000166	112720 	000000G			MOVB	#LF,(R0)+	;
+     90	000172	062716 	000002 			ADD	#2,(SP)		;AND ADJUST BYTE COUNT
+     91	000176	012667 	000600 			MOV	(SP)+,HFIN+4	;SET COMMON HEADER
+     92	000202	012767 	001003'	000570 		MOV	#INBUF-1,HFIN+2 ;RESET POINTER FOR EMPTY
+     93	000210	005267 	000564 		30$:	INC	HFIN+2		;POINT TO CHARACTER
+     94	000214	117701 	000560 			MOVB	@HFIN+2,R1	;GET NEXT CHARACTER FROM INPUT RECORD
+     95	000220	042701 	177600 			BIC	#^C<177>,R1	;CLEAR EXCESS BITS
+     96	000224	001711 				BEQ	FIN		;IF EQ NULL
+     97	000226					CMPEQ	R1,#177,FIN	;RUBOUT?
+     98	000234	000207 			40$:	RETURN			;
+     99						.DSABL	LSB
+    100
+    101	000236				RDOLDC:				;GET OLD TAIL OF COMMAND	%%AUST-1
+    102	000236	117701 	001412 			MOVB	@TMPPNT,R1	;				%%AUST-1
+    103	000242	001003 				BNE	10$		;				%%AUST-1
+    104	000244	005067 	001404 			CLR	TMPPNT		;SIGNIFY NO MORE TO COME	%%AUST-1
+    105	000250	000677 				BR	FIN		; AND GET FROM NORMAL SOURCE	%%AUST-1
+    106	000252				10$:				;				%%AUST-1
+    107	000252	005267 	001376 			INC	TMPPNT		;READY FOR NEXT			%%AUST-1
+    108	000256	000207 				RETURN			;				%%AUST-1
+    109
+    110					;
+    111					; THIS ROUTINE OUTPUTS THE CURRENT CONTENTS OF THE LINE BUFFER
+    112					;
+    113															;SIG02
+    114	000260	016767 	000762 	000000C	OUTPUT::MOV	HFOUT,LSTBLK+F.NRBD ;CALCULATE LENGTH OF LINE TO OUTPUT		;SIG02
+RNFIO	MACRO M1113  27-JUL-87 15:49  PAGE 2-2
+MODIFIED 2-AUG-81 C G WILSON, CHARLEVILLE, AUSTRALIA.
+
+    115	000266	166767 	000760 	000000C		SUB	HFOUT+4,LSTBLK+F.NRBD ;						;SIG02
+    116	000274	001426 				BEQ	OUT3		;IF EQ EMPTY BUFFER				;SIG02
+    117	000276	026767 	000000G	000000G		CMP	PAGENO,LOWPAG	;ONLY PRINT IN THE SELECTED PAGE		;**-20
+    118	000304	103414 				BLO	OUT1		;RANGE
+    119	000306	026767 	000000G	000000G		CMP	PAGENO,HGHPAG
+    120	000314	101017 				BHI	OUT2		;QUIT IF BEYOND RANGE
+    121	000316					PUT$S	#LSTBLK,#OUBUF	;OUTPUT LINE					;SIG02
+    122	000334	103420 				BCS	WRERR3		;IF CS ERROR					;**-14
+    123	000336	016767 	000704 	000706 	OUT1:	MOV	HFOUT,HFOUT+4
+    124	000344	012767 	001254'	000676 		MOV	#OUBUF,HFOUT+2
+    125	000352	000207 			OUT3:	RETURN			;
+    126	000354	004767 	177756 		OUT2:	CALL	OUT1		;RESET POINTERS TO AVOID SIDE EFFECTS
+    127	000360					TSTEQ	HGHPAG,OUT3	;SECOND TIME THROUGH?
+    128	000366	005067 	000000G			CLR	HGHPAG
+    129	000372	000167 	000000G			JMP	ENDFIL		;OTHERWISE INITIATE TERMINATION
+    130
+    131					;
+    132					; I/O ERROR EXITS
+    133					;
+    134															;SIG02
+    135	000376	004767 	000000G		WRERR3:	CALL	$ERMSG								;**-1
+    136	000402	000000G				.WORD	OUTERR
+    137	000404	000167 	000000G		WRERR4:	JMP	RUNOFF		;RESTART
+    138	000410	004767 	000000G		RDERR3:	CALL	$ERMSG
+    139	000414	000000G				.WORD	INPERR
+    140	000416	000772 				BR	WRERR4		;RESTART
+    141															;SIG02
+    142					;										;**-1
+    143					; TERMINAL I/O ROUTINES
+    144					;
+    145					; THIS ROUTINE PERFORMS THE EQUIVALENT OF THE TTCALL 3,
+    146					; OF THE PDP-10.
+    147					;
+    148
+    149	000420	017600 	000000 		TTC3::	MOV	@(SP),R0	;GET ADDRESS OF INPUT STRING
+    150	000424	062716 	000002 			ADD	#2,(SP)		;SKIP OVER STRING ADDRESS
+    151	000430	012701 	000544'			MOV	#TTBUF,R1	;ADDRESS OF OUTPUT STRING
+    152	000434	112021 			10$:	MOVB	(R0)+,(R1)+
+    153	000436	001376 				BNE	10$
+    154	000440	162701 	000544'			SUB	#TTBUF,R1
+    155	000444	010167 	000000C			MOV	R1,TTBLK+F.NRBD	;SET COUNT OF CHARACTERS
+    156	000450				TTC33::	PUT$S	#TTBLK,#TTBUF
+    157	000466	005067 	000000C			CLR	TTBLK+F.NRBD	;MAKE THE LINE EMPTY
+    158	000472	000207 				RETURN			;
+    159
+    160					;+
+    161					; READ TERMINAL INPUT RECORD
+    162					;-
+    163
+    164	000474				TTC4N::	GET$S	#TTBLK		;GET A RECORD					SIG01
+    165	000504	005067 	000000C			CLR	TTBLK+F.NRBD	;MAKE LINE EMPTY				SIG01
+    166	000510	000207 				RETURN			;						;**-1
+    167
+    168					;THIS ROUTINE SIMULATES TTCALL 1, WHICH OUTPUTS ONE
+    169					;CHARACTER AT A TIME
+    170
+    171	000512	022767 	000110 	000000C	TTC1::	CMP	#TTLIN,TTBLK+F.NRBD ;CHECK FOR FULL BUFFER
+RNFIO	MACRO M1113  27-JUL-87 15:49  PAGE 2-3
+MODIFIED 2-AUG-81 C G WILSON, CHARLEVILLE, AUSTRALIA.
+
+    172	000520	003002 				BGT	10$		;IF GT NO
+    173	000522	004767 	177722 			CALL	TTC33		;OUTPUT THE LINE
+    174	000526	110177 	000000C		10$:	MOVB	R1,@TTBLK+F.NRBD+2
+    175	000532	005267 	000000C			INC	TTBLK+F.NRBD+2
+    176	000536	005267 	000000C			INC	TTBLK+F.NRBD
+    177	000542	000207 				RETURN			;
+    178
+    179					;I/O BUFFERS									;%%AUST-1
+    180		000110 			TTLIN==72.									;%%AUST-1
+    181	000544				TTBUF::	.BLKB	TTLIN								;%%AUST-1
+    182		000122 			TTILIN==82.									;%%AUST-1
+    183	000654				TTIBUF::.BLKB	TTILIN								;%%AUST-1
+    184	000776	000240 	000000 	000000 	HFIN::	.WORD	160.,0,0							;%%AUST-1
+    185	001004				INBUF::	.BLKB	162.								;%%AUST-1
+    186	001246	000400 	000000 	000000 	HFOUT::	.WORD	256.,0,0							;%%AUST-1
+    187	001254				OUBUF::	.BLKB	256.								;%%AUST-1
+    188	001654	000000 			TMPPNT::0			;POINTER TO TEMPORARY BUFFER			;%%AUST-1
+    189	001656				TMPBUF::.BLKB	134.		;SAME SIZE AS CMBF				;%%AUST-1
+    190
+    191					;	ROUTINE TO PROMPT OPERATOR AND WAIT FOR SIGNAL TO			;SIG01/A-1
+    192					;	CONTINUE								;SIG01/A-1
+    193					;										;SIG01/A-1
+    194	002064				OPRWAT::;									;SIG01/A-1
+    195	002064					BITEQ	#PAUSW,$SWTCH,50$ ;DON'T WAIT FOR NEW PAPER?			;SIG01/A-1
+    196	002074					BITEQB	#FD.TTY,TTBLK+F.RCTL,50$ ;IS TI: DEVICE A TERMINAL		;SIG01/A-1
+    197	002104	004767 	176150 			CALL	OUTPUT		;FLUSH ANY OUTPUT				;SIG01/A-1
+    198	002110	142767 	000000G	000000C		BICB	#FD.CR,TTBLK+F.RATT ;KEEP FCS FROM ADDING LINE FEED		;SIG01/A-1
+A   199	002116	000000G	000000G			MSGPUT	WIGL		;WAKE THE OPERATOR UP				;SIG01/A-1
+    200	002122	152767 	000000G	000000C		BISB	#FD.CR,TTBLK+F.RATT ;RE-ENABLE CARRIAGE CONTROL			;SIG01/A-1
+    201	002130	004767 	176340 			CALL	TTC4N		;READ A CHARACTER				;SIG01/A-1
+    202	002134	000207 			50$:	RETURN			;RETURN						;SIG01/A-1
+    203
+    204		000001 				.END
+RNFIO	MACRO M1113  27-JUL-87 15:49  PAGE 2-4
+SYMBOL TABLE
+
+CR    = ****** GX	F.RATT= ****** GX	LSTBLK= ****** GX	RDERR3  000410R  	TTIBUF  000654RG
+CRLF    000020RG 	F.RCTL= ****** GX	MSGPUT= ****** GX	RDOLDC  000236R  	TTILIN= 000122 G
+ENDFIL= ****** GX	F.URBD= ****** GX	OPRWAT  002064RG 	RUNOFF= ****** GX	TTLDMY= ****** GX
+EOF   = ****** GX	HFIN    000776RG 	OUBUF   001254RG 	S1    = ****** GX	TTLIN = 000110 G
+FD.CR = ****** GX	HFOUT   001246RG 	OUTERR= ****** GX	TMPBUF  001656RG 	WIGL  = ****** GX
+FD.TTY= ****** GX	HGHPAG= ****** GX	OUTPUT  000260RG 	TMPPNT  001654RG 	WRERR3  000376R
+FIN     000050RG 	H$$PHN= 000000   	OUT1    000336R  	TTBLK = ****** GX	WRERR4  000404R
+FMSG    000004RG 	IE.EOF= ****** GX	OUT2    000354R  	TTBUF   000544RG 	$ERMSG= ****** GX
+FMSGL   000000R  	INBUF   001004RG 	OUT3    000352R  	TTC1    000512RG 	$SWTCH= ****** GX
+FOUT    000030RG 	INPERR= ****** GX	PAGENO= ****** GX	TTC3    000420RG 	.GETSQ= ****** G
+F.ERR = ****** GX	LF    = ****** GX	PAR$$$= 000027   	TTC33   000450RG 	.PUTSQ= ****** G
+F.NRBD= ****** GX	LOWPAG= ****** GX	PAUSW = ****** GX	TTC4N   000474RG
+
+. ABS.	000000	   000
+      	002136	   001
+ERRORS DETECTED:  1
+
+VIRTUAL MEMORY USED:  1234 WORDS  ( 5 PAGES)
+DYNAMIC MEMORY:  2414 WORDS  ( 9 PAGES)
+ELAPSED TIME:  00:00:20
+RNFIO,[100,30]RNFIO/-SP=[100,10]RNPRE,RNFIO
+SPACE?D     468	003372	004767 	002770 		30$:	CALL	CCIN		;READ NEXT CHARACTER,     469	003376					CMPEQ	#SPC,R1,30$	;SPACE?*     470	003404					CMPEQ	#TAB,R1,30$	;TAB?9     471	003412					CMPNE	#CR,R1,50$	;NOT CARRIAGE RETURN? A     472	003420	004767 	002742 		40$:	CALL	CCIN		;BYPASS LINE FEED?D     473	003424	0    477	003452	110167 	175372 		50$:	MOVB	R1,GCSCH	;SAVE FIRST CHARACTER@     478	003456	004767 	001006 			CALL	OUTNJ		;BREAK CURRENT LINEE     479	003462	004767 	000000G			CALL	PARTP		;PERFORM PARAGRAPH BREAKT. RUNOFF	MACRO M1113  29-OCT-81 16:05  PAGE 8-15 MODIFIED 2-AUG-81 C G WILSON, CHARLEVILLE, AUSTRALIA.0TEXT3     483	003502				60$:	CMPEQ	#CR,R1,LCR	;NULL LINE?F>     484	003510				70$:	CMPEQ	R1,#PD,90$	;PERIOD AS FIRST CHAR?>     485	003516	110167 	175326 			MOVB	R1,GCSCH	;SAVE CHARACTER;     486	003522				TEXT::	TSTEQ	$PGPSW,80$	;NO PAGE PENDING?58     487	003530	004767 	003030 			CALL	PAGEC		;BREAK PAGEE     483554	000167 	177216 		85$:	JMP	LSPAC		;R=     492	003560	004767 	000000G		90$:	CALL	CMN		;PARSE COMMANDRJ     493	003564	012746 	003206'			MOV	#ENDCM,-(SP)	;ASSUME NONBREAK COMMANDH     494	003570	011346 				MOV	(R3),-(SP)	;SET ADDRESS OF COMMAND ROUTINE8     495	003572	111246 				MOVB	(R2),-(SP)	;GET FLAG BYTE= REAK COMMANDK     499	003614				100$:	BITEQB	#FPGF,(SP),110$	;DON'T PERFORM PENDING PAGE?;6     500	003622					TSTEQ	$PGPSW,110$	;NO PAGE PENDING?D     501	003630	004767 	002730 			CALL	PAGEC		;PERFORM PAGE OPERATION\     502	003634	012704 	004234'		110$:	MOV	#RCNO,R4	;SET ADDRESS OF NUMBER CONVERSION ROUTINEI                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          

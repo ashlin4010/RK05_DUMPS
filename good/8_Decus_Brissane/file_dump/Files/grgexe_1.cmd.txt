@@ -1,0 +1,185 @@
+.; Execute command processor     G.Grinton        V01.5
+.;
+	.ENABLE SUBSTITUTION
+	.DISABLE LOWERCASE
+.;
+.; This processor executes a file by compilation and task-building,
+.; and relieves the user from much typing.
+.;
+.; It is invoked with a command of the form:
+.;
+.;	EXE file
+.;	EXEQ file
+.;
+.; The second form invokes a dialogue.
+.;
+.; Any switches on the file name are sent to the compiler.
+.;
+.; Two switches may be added to the command:
+.;	/DE	causes the file to be task-built with ODT
+.;	/LI	asks for a listing only
+.;
+.; Look at mode
+	.SETF QUERY
+	.SETS QQ P1[4:4]
+	.IF QQ EQ "Q" .SETT QUERY
+.;
+.; Look for switches on the command
+	.PARSE P1 "//" CMD O1 O2
+	.SETS ODT ""
+	.SETF LONLY
+	.IF O1 EQ "LI" .OR .IF O2 EQ "LI" .SETT LONLY
+	.IF O1 EQ "DE" .OR .IF O2 EQ "DE" .SETS ODT "/DA"
+.;
+.; Initialise variables
+	.SETS LST ""
+	.SETF SPOOL
+	.SETS SPDEL ""
+	.SETT CLNUP
+	.SETT RUN
+.;
+.; Did he tell us the file name?
+	.IF P2 NE "" .GOTO GOTNAM
+.;
+.; No - get it, then analyse as before.
+.AFL:	.ASKS P2 File name
+	.IF P2 EQ "" .GOTO AFL
+.;
+.; Split file name and switches
+.GOTNAM: .PARSE P2 "/" FILE SW
+	.SETS OBJ FILE
+	.SETS MAP ""
+	.IF ODT NE "" .SETS MAP FILE+"/-SP"
+	.IF SW NE "" .SETS SW "/"+SW
+.;
+.; Was it a list-only?
+	.IFF LONLY .GOTO ASK
+.;
+.; Yes - set up the simple case
+	.SETS OBJ ""
+	.SETS LST FILE
+	.SETT SPOOL
+	.SETS SPDEL "/DEL"
+	.GOTO TESTS
+.;
+.; Was it query mode?
+.ASK:	.IFF QUERY .GOTO TESTS
+.;
+.; Ask a lot of questions and do what he wants
+	.ASK LIST Do you want a listing
+	.IFF LIST .GOTO KLN
+	.SETS LST FILE
+	.ASK SPOOL Print it on the printer
+	.ASK DELSPL Delete the list file after it is printed
+	.IFT DELSPL .SETS SPDEL "/DEL"
+.KLN:	.ASK CLNUP Delete intermediate files (say yes!)
+	.ASK RUN Run
+.;
+.; Now we look for the various types of files
+.; The order is .FTN, .PAS, .MAC, .TSK
+.;
+.TESTS:	.TESTFILE 'FILE'.FTN
+	.IF <FILERR> NE 1 .GOTO T1
+	.SETS PRC "FOR"
+	.GOTO DOIT
+.;
+.T1:	.TESTFILE 'FILE'.PAS
+	.IF <FILERR> EQ 1 .GOTO DOPAS
+.;
+	.TESTFILE 'FILE'.MAC
+	.IF <FILERR> NE 1 .GOTO T2
+	.SETS PRC "MAC"
+	.GOTO DOIT
+.;
+.T2:	.TESTFILE 'FILE'.TSK
+	.IF <FILERR> NE 1 .GOTO NOFIL
+	.IFT LONLY .GOTO NOFIL
+.;
+.; Got a .TSK file
+	.IFT RUN RUN 'FILE'
+	.EXIT
+.;
+.; Could not find any sort of file
+.NOFIL:	;EXE -- Sorry, but I cannot find a file called 'FILE'.
+	.EXIT
+.;
+.; Come here for MAC and FTN
+.;
+.; Call the compiler or assembler
+.DOIT:	.SETS LSTF LST
+	.IF LSTF NE "" .SETS LSTF LSTF+"/-SP"
+	'PRC' 'OBJ','LSTF'='FILE''SW'
+.; Remember the exit status
+	.SETN STAT <EXSTAT>
+.;
+	.IFT LONLY .GOTO D2
+.;
+	.IF STAT LE 1 .GOTO D2
+	.SETF RUN
+	.SETT CLNUP
+	.GOTO D3
+.;
+.D2:	.IFT SPOOL .XQT PRI 'LST''SPDEL'
+	.IFT LONLY .EXIT
+.;
+.; Task build
+	PIP 'FILE'.TSK;*/DE/NM
+	TKB 'FILE''ODT'/CP,'MAP'='OBJ',LB:[1,1]SECLIB/LB
+.;
+.; Clean-up if required
+.D3:	.IFT CLNUP .XQT PIP 'OBJ'.OBJ;0/DE
+.;
+.; Run if he wants it
+	.IFT RUN RUN 'FILE'
+	.EXIT
+.;
+.; Process for Pascal file
+.;
+.; Set up a few special defaults
+.DOPAS:	.SETS SYM ""
+	.SETS DSW ""
+	.SETS DEBUG ""
+.;
+.; Are we in query mode?
+	.IFF QUERY .GOTO P2
+.;
+.; Yes - ask more questions
+.ADB:	.ASKS DEBUG Debug(D) or Profile(P) or normal(RETURN)?
+	.IF DEBUG EQ "" .GOTO P2
+	.IF DEBUG EQ "D" .GOTO P1
+	.IF DEBUG NE "P" .GOTO ADB
+.P1:	.SETS DSW "/S/D"
+	.SETS SYM FILE
+.;
+.; Now execute
+.P2:	PAS 'OBJ','LST','SYM'='FILE''DSW''SW'
+	.SETN STAT <EXSTAT>
+.;
+.; Only delete list file if it is not needed for the debug
+	.IFF SPOOL .GOTO P3
+	.IF DSW EQ "" .XQT PRI 'LST'/DEL
+	.IF DSW NE "" .XQT PRI 'LST'
+	.IFT LONLY .EXIT
+.;
+	.IF STAT > 1 .GOTO P4
+.;
+.P3:	MAC 'OBJ'='OBJ'
+	.SETN STAT <EXSTAT>
+	.IF STAT > 1 .GOTO P4
+.;
+.; Go on to build it
+.;
+	PIP 'FILE'.TSK;*/DE/NM
+	.IF DEBUG NE "P" TKB 'FILE''ODT'/CP,'MAP'='OBJ',LB:[1,1]PASLIB/LB
+	.IF DEBUG EQ "P" TKB 'FILE''ODT'/CP,'MAP'='OBJ',LB:[1,1]PROFIL,PASLIB/LB
+.;
+	.IFT CLNUP .XQT PIP 'OBJ'.MAC;0/DE,.OBJ;0
+.;
+	.IFT RUN RUN 'FILE'
+.;
+	.EXIT
+.;
+.; Clean up from an error condition
+.;
+.P4:	PIP 'OBJ'.MAC;0/DE/NM,.OBJ;0
+.;

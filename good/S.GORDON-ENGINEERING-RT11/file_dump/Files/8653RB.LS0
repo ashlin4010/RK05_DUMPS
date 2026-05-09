@@ -1,0 +1,186 @@
+
+ REVERB     -    ROOM  ACOUSTIC  PROPERTIES  ANALYSIS   -   03-NOV-87
+ --------------- <C> SANDERS JOHNSON SMITH LTD -----------------
+ CIT HERETAUNGA D BLOCK MODS - STUDIO ACOUSTICS C/N 8653 (SERVICES C/N 8619)     
+ 
+ TR STUDIO - ORIGINAL FINISHES PER NIB DRAWINGS 86.11.967/1A,3A REC'D 1-APR-87   
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      4   23   21   41   53   52
+ 18:Floated,Painted-poured conc; or tile    57.6      2    4    3    3    2    2
+ 26:  10mm Ply Panelling                    10.8     11   17    5    2    2    2
+ 31:OrdinaryLight Window Glass               1.8      2    3    1    1    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    88.7     81   53   70   54   42   43
+ 
+ VOLUME =     173.0  REVERB. TIMES (EYRING RT60) = 1.10 2.15 0.85 0.68 0.60 0.55
+                                        MEAN REVERB. TIME =  0.99 seconds.
+
+ 
+ TECC STUDIO - ORIGINAL FINISHES AS NIB DWGS 86.11.967/1A,3A REC'D 1-APR-87      
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       35.0      4   21   19   37   50   49
+ 18:Floated,Painted-poured conc; or tile    50.1      3    5    3    3    3    3
+ 26:  10mm Ply Panelling                     7.2      9   14    5    2    2    2
+ 31:OrdinaryLight Window Glass               1.8      3    4    1    1    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    71.9     82   56   72   57   45   46
+ 
+ VOLUME =     123.0  REVERB. TIMES (EYRING RT60) = 0.98 1.98 0.77 0.63 0.57 0.52
+                                        MEAN REVERB. TIME =  0.91 seconds.
+
+ 
+ CONTROL ROOM - ORIGINAL FINISHES PER NIB DWGS 86.11.967/1A,3A REC'D 1-APR-87    
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor        6.2      1    6   17   40   46   44
+ 18:Floated,Painted-poured conc; or tile     6.2      1    1    2    2    2    2
+ 26:  10mm Ply Panelling                    12.0     30   41   38   22   19   19
+ 27:  12mm Gibraltar Bd. on 4x2s @450crs    20.8     53   35   21   17   23   27
+ 31:OrdinaryLight Window Glass               3.6     11   14   12    9    4    2
+ 33:Pinex (Hessian covered) "Panelweave"     2.0      4    3   10   10    6    7
+ 
+ VOLUME =      20.0  REVERB. TIMES (EYRING RT60) = 0.30 0.54 0.64 0.66 0.51 0.46
+                                        MEAN REVERB. TIME =  0.52 seconds.
+
+ 
+ TR STUDIO - ORIGINAL FINISHES AND OCCUPIED BY THREE PEOPLE.                     
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      4   21   20   39   52   50
+ 18:Floated,Painted-poured conc; or tile    57.6      2    4    3    2    2    2
+ 26:  10mm Ply Panelling                    10.8     10   15    5    2    2    2
+ 31:OrdinaryLight Window Glass               1.8      2    3    1    1    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    88.7     78   49   68   52   40   42
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      3    7    3    3    3    3
+ 
+ VOLUME =     173.0  REVERB. TIMES (EYRING RT60) = 1.06 1.99 0.82 0.66 0.59 0.53
+                                        MEAN REVERB. TIME =  0.94 seconds.
+
+ 
+ TECC STUDIO - ORIGINAL FINISHES AND OCCUPIED BY THREE PEOPLE.                   
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       35.0      3   19   18   36   48   47
+ 18:Floated,Painted-poured conc; or tile    50.1      2    5    3    3    3    3
+ 26:  10mm Ply Panelling                     7.2      9   13    4    2    2    2
+ 31:OrdinaryLight Window Glass               1.8      3    4    1    1    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    71.9     79   51   69   55   43   45
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      4    9    4    4    4    4
+ 
+ VOLUME =     123.0  REVERB. TIMES (EYRING RT60) = 0.94 1.80 0.73 0.61 0.55 0.50
+                                        MEAN REVERB. TIME =  0.86 seconds.
+
+ 
+ CONTROL ROOM - ORIGINAL FINISHES AND OCCUPIED BY ONE PERSON.                    
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor        6.2      1    6   15   37   43   42
+ 18:Floated,Painted-poured conc; or tile     6.2      1    1    2    2    2    2
+ 26:  10mm Ply Panelling                    12.0     29   39   36   20   18   18
+ 27:  12mm Gibraltar Bd. on 4x2s @450crs    20.8     52   33   19   16   22   25
+ 31:OrdinaryLight Window Glass               3.6     11   13   11    8    4    2
+ 33:Pinex (Hessian covered) "Panelweave"     2.0      4    3    9    9    6    6
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     1.0      3    5    7    8    7    6
+ 
+ VOLUME =      20.0  REVERB. TIMES (EYRING RT60) = 0.29 0.51 0.59 0.61 0.47 0.43
+                                        MEAN REVERB. TIME =  0.48 seconds.
+
+ 
+ TR STUDIO - 3 OCCUPANTS, CEILING CHANGED TO GIB BD.                             
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      3   15   19   38   48   47
+ 26:  10mm Ply Panelling                    10.8      7   11    5    2    2    2
+ 27:  12mm Gibraltar Bd. on 4x2s @450crs    57.6     37   29    8    6    8   10
+ 31:OrdinaryLight Window Glass               1.8      1    2    1    1    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    88.7     50   36   64   50   38   39
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      2    5    3    3    3    3
+ 
+ VOLUME =     155.0  REVERB. TIMES (EYRING RT60) = 0.59 1.30 0.69 0.57 0.49 0.44
+                                        MEAN REVERB. TIME =  0.68 seconds.
+
+ 
+ TR STUDIO - 3 OCCUPANTS, CEILING OF 50/50 GIB BD. AND ACOUSTIC TILES.           
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      2   11   15   33   42   40
+ 26:  10mm Ply Panelling                    10.8      6    8    4    2    2    2
+ 27:  12mm Gibraltar Bd. on 4x2s @450crs    29.0     17   10    3    2    4    4
+ 31:OrdinaryLight Window Glass               1.8      1    2    1    0    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    88.7     45   26   51   44   33   33
+ 34:Pinex Acoustic Ceiling Tiles            29.0     26   40   23   16   18   19
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      2    4    3    3    2    2
+ 
+ VOLUME =     155.0  REVERB. TIMES (EYRING RT60) = 0.53 0.90 0.54 0.48 0.41 0.36
+                                        MEAN REVERB. TIME =  0.54 seconds.
+
+ 
+ TR STUDIO - 3 OCCUPANTS, PANELWEAVE CHANGED TO ACOUSTIC TILES.                  
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      2    7   16   37   41   38
+ 18:Floated,Painted-poured conc; or tile    57.6      1    1    2    2    2    2
+ 26:  10mm Ply Panelling                    10.8      7    5    4    2    2    2
+ 31:OrdinaryLight Window Glass               1.8      1    1    1    0    0    0
+ 34:Pinex Acoustic Ceiling Tiles            88.7     86   82   74   55   53   56
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      2    2    3    3    2    2
+ 
+ VOLUME =     173.0  REVERB. TIMES (EYRING RT60) = 0.63 0.66 0.65 0.61 0.45 0.39
+                                        MEAN REVERB. TIME =  0.56 seconds.
+
+ 
+ TR STUDIO - 3 OCCUPANTS, ACOUSTIC TILE WALL PANELS, GIB CEILING                 
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      2    7   16   36   39   36
+ 26:  10mm Ply Panelling                    10.8      5    5    4    2    2    2
+ 27:  12mm Gibraltar Bd. on 4x2s @450crs    57.6     27   12    7    5    7    8
+ 31:OrdinaryLight Window Glass               1.8      1    1    1    0    0    0
+ 34:Pinex Acoustic Ceiling Tiles            88.7     64   73   70   54   50   53
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      1    2    3    3    2    2
+ 
+ VOLUME =     158.0  REVERB. TIMES (EYRING RT60) = 0.41 0.53 0.56 0.54 0.38 0.33
+                                        MEAN REVERB. TIME =  0.46 seconds.
+
+ 
+ TR STUDIO - 3 OCCUPANTS, ACOUSTIC TILE WALL PANELS AND CEILING                  
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       49.6      2    5   11   28   31   28
+ 26:  10mm Ply Panelling                    10.8      4    4    3    2    1    1
+ 31:OrdinaryLight Window Glass               1.8      1    1    1    0    0    0
+ 34:Pinex Acoustic Ceiling Tiles           146.3     92   89   83   68   66   69
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      1    2    2    2    2    2
+ 
+ VOLUME =     158.0  REVERB. TIMES (EYRING RT60) = 0.35 0.37 0.38 0.40 0.29 0.24
+                                        MEAN REVERB. TIME =  0.34 seconds.
+
+ 
+ TECC STUDIO - 3 OCCUPANTS, ACOUSTIC TILE CEILING                                
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor       35.0      2    7   11   26   32   31
+ 26:  10mm Ply Panelling                     7.2      4    5    3    1    1    1
+ 31:OrdinaryLight Window Glass               1.8      1    1    1    0    0    0
+ 33:Pinex (Hessian covered) "Panelweave"    71.9     40   19   43   39   29   29
+ 34:Pinex Acoustic Ceiling Tiles            50.1     50   64   40   31   34   36
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     3.0      2    3    3    3    3    2
+ 
+ VOLUME =     113.0  REVERB. TIMES (EYRING RT60) = 0.41 0.59 0.39 0.38 0.32 0.28
+                                        MEAN REVERB. TIME =  0.40 seconds.
+
+ 
+ CONTROL ROOM - 1 OCCUPANT, CEILING AND GIB WALLS CHANGED TO ACOUSTIC TILES      
+                                                      % OF TOTAL BAND ABSORPTION
+ FAB#    FABRIC DESCRIPTION           FABRIC AREA   125  250  500 1kHz 2kHz 4kHz
+ 10:Heavy Latex Carpet on Conc. Floor        6.2      1    3    6   17   20   19
+ 26:  10mm Ply Panelling                    12.0     19   17   14    9    8    8
+ 31:OrdinaryLight Window Glass               3.6      7    6    5    4    2    1
+ 33:Pinex (Hessian covered) "Panelweave"     2.0      3    1    4    4    3    3
+ 34:Pinex Acoustic Ceiling Tiles            27.0     69   71   68   62   64   67
+ 37:Seated Audience(ADD TO FLOOR ABSORP)     1.0      2    2    3    4    3    3
+ 
+ VOLUME =      19.0  REVERB. TIMES (EYRING RT60) = 0.17 0.19 0.21 0.25 0.19 0.16
+                                        MEAN REVERB. TIME =  0.20 seconds.
+
+                                                                                                                                                                                                                                                                                                                                                                                                

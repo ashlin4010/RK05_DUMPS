@@ -1,0 +1,578 @@
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2
+
+
+      1						.TITLE FMTCM
+      2						.IDENT	/M02/
+      3
+      4					;
+      5					; COPYRIGHT (C) 1976
+      6					; DIGITAL EQUIPMENT CORPORATION, MAYNARD, MASS.
+      7					;
+      8					; THIS SOFTWARE IS FURNISHED UNDER  A LICENSE FOR USE ONLY  ON  A
+      9					; SINGLE COMPUTER SYSTEM AND MAY BE  COPIED ONLY WITH  THE INCLU-
+     10					; SION OF  THE  ABOVE  COPYRIGHT NOTICE.  THIS SOFTWARE,  OR  ANY
+     11					; OTHER COPIES THEREOF, MAY NOT BE  PROVIDED  OR  OTHERWISE  MADE
+     12					; AVAILABLE TO ANY OTHER PERSON EXCEPT  FOR  USE  ON  SUCH SYSTEM
+     13					; AND TO  ONE WHO AGREES  TO  THESE LICENSE  TERMS.  TITLE TO AND
+     14					; OWNERSHIP OF THE SOFTWARE SHALL AT ALL TIMES REMAIN IN DEC.
+     15					;
+     16					; THE INFORMATION IN THIS SOFTWARE  IS  SUBJECT TO CHANGE WITHOUT
+     17					; NOTICE AND SHOULD NOT BE CONSTRUED  AS  A COMMITMENT BY DIGITAL
+     18					; EQUIPMENT CORPORATION.
+     19					;
+     20					; DEC ASSUMES NO RESPONSIBILITY FOR THE USE OR RELIABILITY OF ITS
+     21					; SOFTWARE ON EQUIPMENT WHICH IS NOT SUPPLIED BY DEC.
+     22					;
+     23					; VERSION M02
+     24					;
+     25					; AUTHOR: D. N. CUTLER 22-SEP-75
+     26					;
+     27					; RUNOFF COMMANDS
+     28					;
+     29					; ALL COMMAND ROUTINES ARE ENTERED WITH:
+     30					;
+     31					;	R4=ADDRESS OF NUMBER CONVERSION ROUTINE.
+     32					;	R5=ADDRESS OF FLAG WORD F.1.
+     33					;
+     34					; LOCAL DATA
+     35					;
+     36					; OUTPUT TEXT
+     37					;
+     38
+     39	000000	   101 	   120 	   120 	APNMG:	.ASCIZ	/APPENDIX /	;APPENDIX HEADING PROTOTYPE
+	000003	   105 	   116 	   104
+	000006	   111 	   130 	   040
+	000011	   000
+     40	000012	   103 	   110 	   101 	CHAPT:	.ASCIZ	/CHAPTER /	;CHAPTER HEADING PROTOTYPE
+	000015	   120 	   124 	   105
+	000020	   122 	   040 	   000
+     41	000023	   114 	   117 	   127 	LOWER:	.ASCIZ	/LOWER/<0><'P+40><'A+40><'G+40><'E+40><' > ;LOWER CASE PAGE
+	000026	   105 	   122 	   000
+	000031	   160 	   141 	   147
+	000034	   145 	   040 	   000
+     42	000037	   115 	   111 	   130 	MIXED:	.ASCIZ	/MIXED/<0><'P><'A+40><'G+40><'E+40><' > ;MIXED CASE PAGE
+	000042	   105 	   104 	   000
+	000045	   120 	   141 	   147
+	000050	   145 	   040 	   000
+     43	000053	   116 	   117 	   124 	NOTET:	.ASCIZ	/NOTE/		;NOTE HEADING PROTOTYPE
+	000056	   105 	   000
+     44	000060	   125 	   120 	   120 	UPPER:	.ASCIZ	/UPPER/<0>/PAGE/<' > ;UPPER CASE PAGE
+	000063	   105 	   122 	   000
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-1
+
+
+	000066	   120 	   101 	   107
+	000071	   105 	   040 	   000
+     45						.EVEN
+     46
+     47					;
+     48					; APPENDIX COMMAND
+     49					;
+     50
+     51						.ENABL	LSB
+     52	000074	012746 	000000'		APNDX::	MOV	#APNMG,-(SP)	;SET ADDRESS OF APPENDIX HEADING
+     53	000100	000402 				BR	10$		;
+     54
+     55					;
+     56					; CHAPTER COMMAND
+     57					;
+     58
+     59	000102	012746 	000012'		CHPTR::	MOV	#CHAPT,-(SP)	;SET ADDRESS OF CHAPTER HEADING
+     60	000106	016767 	000000G	000000G	10$:	MOV	TTLP1,TTLP2	;CLEAR TITLE BUFFER
+     61	000114	016767 	000000G	000000G		MOV	STTLP1,STTLP2	;CLEAR SUBTITLE BUFFER
+     62	000122	005067 	000000G			CLR	LMARG		;SET LEFT MARGIN
+     63	000126	016767 	000000G	000000G		MOV	PRMRG,RMARG	;SET RIGHT MARGIN
+     64	000134	012767 	000000G	000000G		MOV	#SPCNG,NSPNG	;SET INITIAL SPACING
+     65	000142	052715 	000000C			BIS	#FILLF!JUSTF!PJUSTF,(R5) ;SET FILL AND JUSTIFY FLAGS
+     66	000146	005067 	000000G			CLR	PAGENO		;SET INITIAL PAGE NUMBER
+     67	000152					TSTNE	LINEC,15$	;NOT AT TOP OF PAGE ALREADY?
+     68	000160	005267 	000000G			INC	PAGENO		;INCREMENT PAGE NUMBER
+     69	000164	004767 	000000G		15$:	CALL	PAGEC		;BREAK CURRENT PAGE
+     70	000170	012702 	000007 			MOV	#7.,R2		;SET LINE COUNT
+     71	000174	004767 	000000G			CALL	SKIPN		;SKIP SEVEN LINES
+     72	000200	016702 	000000G			MOV	RMARG,R2	;CALCULATE SPACE COUNT TO HEADING
+     73	000204	006202 				ASR	R2		;
+     74	000206	162702 	000005 			SUB	#5.,R2		;
+     75	000212	004767 	000000G			CALL	NSPAC		;SPACE TO CHAPTER HEADING
+     76	000216	011667 	000000G			MOV	(SP),S1		;SET ADDRESS OF OUTPUT HEADING
+     77	000222	004767 	000000G			CALL	FMSG		;OUTPUT HEADING
+     78	000226	012700 	000004G			MOV	#CHPTN+4,R0	;POINT TO LAST LEVEL NUMBER
+     79	000232	005010 				CLR	(R0)		;CLEAR LEVEL NUMBERS
+     80	000234	005040 				CLR	-(R0)		;
+     81	000236	105040 				CLRB	-(R0)		;
+     82	000240					CMPEQ	#CHAPT,(SP)+,20$ ;CHAPTER COMMAND?
+     83	000246	005267 	000000G			INC	APNDN		;INCREMENT APPENDIX LETTER
+     84	000252	116701 	000000G			MOVB	APNDN,R1	;GET APPENDIX LETTER
+     85	000256	062701 	000100 			ADD	#'A-1,R1	;CONVERT TO UPPER CASE LETTER
+     86	000262	004767 	000000G			CALL	FOUT		;OUTPUT LETTER
+     87	000266	000404 				BR	30$		;
+     88	000270	105240 			20$:	INCB	-(R0)		;INCREMENT CHAPTER NUMBER
+     89	000272	111000 				MOVB	(R0),R0		;GET CHAPTER NUMBER
+     90	000274	004767 	000000G			CALL	DECPRT		;OUTPUT CURRENT CHAPTER NUMBER
+     91	000300	012702 	000002 		30$:	MOV	#2.,R2		;SET LINE COUNT
+     92	000304	004767 	000000G			CALL	SKIPN		;SKIP TWO LINES
+     93	000310	004767 	000000G			CALL	SETTL		;MOVE TITLE TO BUFFER
+     94	000314	016702 	000000G			MOV	RMARG,R2	;CALCULATE SPACE TO CENTER TEXT
+     95	000320	066702 	000000G			ADD	TTLP1,R2	;
+     96	000324	166702 	000000G			SUB	TTLP2,R2	;
+     97	000330	006202 				ASR	R2		;
+     98	000332	004767 	000000G			CALL	NSPAC		;SPACE TO START OF TEXT
+     99	000336	012704 	000000G			MOV	#TTLP1,R4	;POINT TO TITLE DESCRIPTOR
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-2
+
+
+    100	000342	004767 	000000G			CALL	PSTRPA		;OUTPUT CONTENTS OF TITLE BUFFER
+    101	000346	012702 	000004 			MOV	#4.,R2		;SET LINE COUNT
+    102	000352	000167 	000000G			JMP	SKIPN		;SKIP FOUR LINES
+    103						.DSABL	LSB
+    104
+    105					;
+    106					; HEADER COMMAND
+    107					;
+    108
+    109	000356	004767 	000000G		HEADP::	CALL	$FRCND		;FORCE TO LOGICAL END OF LINE
+    110	000362	012702 	000060'			MOV	#UPPER,R2	;ASSUME UPPER CASE SPECIFIED
+    111	000366					CMPEQ	#CR,R1,25$	;CARRIAGE RETURN?
+    112	000374					CMPEQ	#SEMI,R1,25$	;SEMICOLON?
+    113	000402	004767 	000074 			CALL	50$		;READ FIRST CHARACTER
+    114	000406					CMPEQB	R1,(R2)+,10$	;FIRST CHARACTER MATCH?
+    115	000412	012702 	000037'			MOV	#MIXED,R2	;ASSUME 'MIXED' KEYWORD
+    116	000416					CMPEQB	R1,(R2)+,10$	;FIRST CHARACTER MATCH?
+    117	000422	012702 	000023'			MOV	#LOWER,R2	;ASSUME 'LOWER' KEYWORD
+    118	000426					CMPNEB	R1,(R2)+,10$	;FIRST CHARACTER MISMATCH?
+    119	000432				10$:	TSTEQB	(R2),30$	;NO MORE CHARACTERS TO MATCH?
+    120	000436	004767 	000040 			CALL	50$		;READ ANOTHER CHARACTER
+    121	000442					CMPEQB	R1,(R2)+,10$	;CHARACTER MATCH?
+    122	000446	000167 	000000G		20$:	JMP	ILCM		;ILLEGAL COMMAND
+    123	000452				25$:	TSTNEB	(R2)+,25$	;SEARCH FOR END OF STRING
+    124	000456	005302 				DEC	R2		;ADJUST FOR FOLLOWING INCREMENT
+    125	000460	005202 			30$:	INC	R2		;POINT TO PAGE PROTOTYPE
+    126	000462	012701 	000000G			MOV	#PAGHD,R1	;POINT TO PAGE HEADER AREA
+    127	000466	112221 			40$:	MOVB	(R2)+,(R1)+	;MOVE PROTOTYPE
+    128	000470	001376 				BNE	40$		;IF NE MORE TO GO
+    129	000472	012767 	000005 	000000G		MOV	#5,$HDRSW	;SET TO PRINT PAGE HEADERS
+    130	000500	000207 				RETURN			;
+    131	000502	004767 	000000G		50$:	CALL	CCIN		;READ NEXT CHARACTER
+    132	000506	022701 	000141 			CMP	#'A+40,R1	;LOWER CASE?
+    133	000512	101005 				BHI	60$		;IF HI NO
+    134	000514	022701 	000172 			CMP	#'Z+40,R1	;LOWER CASE?
+    135	000520	103402 				BLO	60$		;IF LO NO
+    136	000522	042701 	000040 			BIC	#40,R1		;CONVERT TO UPPER CASE
+    137	000526	000207 			60$:	RETURN			;
+    138
+    139					;
+    140					; NOHEADER COMMAND
+    141					;
+    142
+    143	000530	005067 	000000G		NHEAD::	CLR	$HDRSW		;SET TO NOT PRINT PAGE HEADERS
+    144	000534	000207 				RETURN			;
+    145
+    146					;
+    147					; HEADER LEVEL COMMAND
+    148					;
+    149
+    150	000536	004714 			HEADR::	CALL	(R4)		;GET HEADING LEVEL NUMBER
+    151	000540	000167 	000000G		10$:	JMP	ILCM		;MUST BE LEVEL NUMBER
+    152	000544	005303 				DEC	R3		;REDUCE LEVEL BY ONE
+    153	000546	020327 	000004 			CMP	R3,#4.		;LEGAL LEVEL NUMBER?
+    154	000552	101372 				BHI	10$		;IF HI NO
+    155	000554	062703 	000001G			ADD	#CHPTN+1,R3	;POINT TO LEVEL COUNTER
+    156	000560	105223 				INCB	(R3)+		;INCREMENT LEVEL NUMBER
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-3
+
+
+    157	000562	020327 	000005G		20$:	CMP	R3,#CHPTN+5	;END OF LEVEL NUMBERS?
+    158	000566	101002 				BHI	30$		;IF HI YES
+    159	000570	105023 				CLRB	(R3)+		;CLEAR NEXT LEVEL NUMBER
+    160	000572	000773 				BR	20$		;
+    161	000574				30$:	TSTEQB	-(R3),30$	;ZERO LEVEL?
+    162	000600	010346 				MOV	R3,-(SP)	;SAVE ADDRESS OF LAST LEVEL TO PRINT
+    163	000602	012703 	000010 			MOV	#8.,R3		;SET TEST PAGE VALUE
+    164	000606	004767 	000000G			CALL	TESTP		;TEST IF PAGE SHOULD BE BROKEN
+    165	000612	026767 	000000G	000000G		CMP	$HDRSW,LINEC	;IN HEADER REGION OF PAGE?
+    166	000620	002004 				BGE	33$		;IF GE YES
+    167	000622	012702 	000003 			MOV	#3.,R2		;SET LINE COUNT
+    168	000626	004767 	000000G			CALL	SKIPN		;SKIP THREE LINES
+    169	000632	012705 	000002G		33$:	MOV	#SDINP+2,R5	;GET ADDRESS OF SECONDARY BUFFER DESCRIPTOR
+    170	000636	012715 	177777G			MOV	#SDBUF-1,(R5)	;INITIALIZE DESCRIPTOR
+    171	000642	011545 				MOV	(R5),-(R5)	;
+    172	000644	012703 	002132'			MOV	#SDWCI,R3	;SET ADDRESS OF WRITE CHARACTER ROUTINE
+    173	000650	022716 	000003G			CMP	#CHPTN+3,(SP)	;HEADING LEVEL 1 OR 2?
+    174	000654	101410 				BLOS	35$		;IF LOS NO
+    175	000656	016702 	000000G			MOV	LMARG,R2	;GET VALUE OF LEFT MARGIN
+    176	000662	066702 	000000G			ADD	INDCT,R2	;ADD IN INDENTATION
+    177	000666	005067 	000000G			CLR	INDCT		;
+    178	000672	004767 	000000G			CALL	NSPAC		;SPACE TO LEFT MARGIN
+    179	000676	012702 	000000G		35$:	MOV	#CHPTN,R2	;POINT TO CHAPTER/LEVEL TABLE
+    180	000702	116701 	000000G			MOVB	APNDN,R1	;GET CURRENT APPENDIX NUMBER
+    181	000706	001405 				BEQ	37$		;IF EQ NONE
+    182	000710	005202 				INC	R2		;POINT PAST CHAPTER NUMBER
+    183	000712	062701 	000100 			ADD	#'A-1,R1	;CONVERT TO ASCII CHARACTER
+    184	000716	004713 				CALL	(R3)		;WRITE CHARACTER IN BUFFER
+    185	000720	000412 				BR	55$		;
+    186	000722	112200 			37$:	MOVB	(R2)+,R0	;GET CHAPTER NUMBER
+    187	000724	001004 				BNE	50$		;IF NE CHAPTER ORIENTED DOCUMENT
+    188	000726					CMPNE	R2,(SP),40$	;NOT HEADER LEVEL 1?
+    189	000732	005216 				INC	(SP)		;PRINT TRAILING ZERO
+    190	000734	112200 			40$:	MOVB	(R2)+,R0	;GET NEXT LEVEL NUMBER
+    191	000736	004767 	001140 		50$:	CALL	CVTNM		;CONVERT CHAPTER/LEVEL NUMBER
+    192	000742	020216 				CMP	R2,(SP)		;LAST NUMBER CONVERTED?
+    193	000744	101004 				BHI	60$		;IF HI YES
+    194	000746	012701 	000000G		55$:	MOV	#PD,R1		;WRITE PERIOD INTO BUFFER
+    195	000752	004713 				CALL	(R3)		;
+    196	000754	000767 				BR	40$		;
+    197	000756	022726 	000003G		60$:	CMP	#CHPTN+3,(SP)+	;HEADING LEVEL 3, 4, OR 5?
+    198	000762	101030 				BHI	80$		;IF HI NO
+    199	000764	012701 	000043 			MOV	#'#,R1		;WRITE TWO QUOTED SPACES INTO BUFFER
+    200	000770	004713 				CALL	(R3)		;
+    201	000772	004713 				CALL	(R3)		;
+    202	000774	004767 	000000G			CALL	$FRCND		;FORCE TO LOGICAL END OF COMMAND
+    203	001000	004767 	000000G		70$:	CALL	CCIN		;READ CHARACTER FROM FILE
+    204	001004					CMPEQ	#CR,R1,75$	;CARRIAGE RETURN?
+    205	001012	004713 				CALL	(R3)		;WRITE CHARACTER IN BUFFER
+    206	001014	000771 				BR	70$		;
+    207	001016	012701 			75$:	MOV	(PC)+,R1	;GET QUOTED SPACE AND DASH
+    208	001020	   043 	   055 			.ASCII	/#-/		;
+    209	001022	004713 				CALL	(R3)		;WRITE QUOTED SPACE INTO BUFFER
+    210	001024	000301 				SWAB	R1		;SWAP DASH TO RIGHT BYTE
+    211	001026	004713 				CALL	(R3)		;WRITE DASH INTO BUFFER
+    212	001030	000301 				SWAB	R1		;SWAP QUOTED SPACE TO RIGHT BYTE
+    213	001032	004713 				CALL	(R3)		;WRITE QUOTED SPACE INTO BUFFER
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-4
+
+
+    214	001034	012701 	000000G			MOV	#CR,R1		;WRITE CARRIAGE RETURN INTO BUFFER
+    215	001040	004713 				CALL	(R3)		;
+    216	001042	000564 				BR	LINEP		;FINISH IN COMMON CODE
+    217	001044	012701 	000040 		80$:	MOV	#' ,R1		;GET A SPACE CHARACTER
+    218	001050	004713 				CALL	(R3)		;WRITE TWO SPACES INTO BUFFER
+    219	001052	004713 				CALL	(R3)		;
+    220	001054	004767 	000000G			CALL	SHFUC		;SHIFT TO UPPER CASE FOR HEADING LINE
+    221	001060	004767 	000000G			CALL	SETBF		;TRANSFER REMAINDER OF LINE TO BUFFER
+    222	001064	010504 				MOV	R5,R4		;SET ADDRESS OF LINE DESCRIPTOR
+    223	001066	004767 	000000G			CALL	PSTRPA		;OUTPUT HEADING LINE
+    224	001072	012702 	000002 			MOV	#2.,R2		;SET LINE COUNT
+    225	001076	000167 	000000G			JMP	SKIPN		;SKIP TWO LINES
+    226
+    227					;
+    228					; LIST COMMAND
+    229					;
+    230
+    231						.ENABL	LSB
+    232	001102	004714 			LISTC::	CALL	(R4)		;GET LIST VERTICLE SPACING
+    233	001104	016703 	000000G			MOV	LSTVS,R3	;DEFAULT TO CURRENT SPACING
+    234	001110	020327 	000005 			CMP	R3,#5		;LEGAL VALUE?
+    235	001114	101056 				BHI	30$		;IF HI NO
+    236	001116	016700 	000000G			MOV	LSTKP,R0	;GET CURRENT LIST STACK POINTER
+    237	001122	116720 	000000G			MOVB	LMARG,(R0)+	;SAVE LEFT MARGIN
+    238	001126	116720 	000000G			MOVB	LSTCT,(R0)+	;SAVE LIST ELEMENT COUNT
+    239	001132	016720 	000000G			MOV	F.1,(R0)+	;SAVE FLAG WORD
+    240	001136	016720 	000000G			MOV	CMADR,(R0)+	;SAVE EXPECTED COMMAND ADDRESS
+    241	001142	020027 	000036G			CMP	R0,#LSTK+<5*3*2> ;LIST STACK OVERFLOW?
+    242	001146	101041 				BHI	30$		;IF HI YES
+    243	001150	010067 	000000G			MOV	R0,LSTKP	;SAVE NEW LIST STACK POINTER
+    244	001154	010367 	000000G			MOV	R3,LSTVS	;SET NEW LIST VERTICLE SPACING
+    245	001160	052715 	000000G			BIS	#SPECF,(R5)	;SET SPECIAL PROCESSING FLAG
+    246	001164	105067 	000000G			CLRB	LSTCT		;CLEAR CURRENT LIST ELEMENT NUMBER
+    247	001170	012704 	000000G			MOV	#LSLMAR,R4	;ASSUME EMBEDDED LIST INDENT
+    248	001174					CMPNE	#LSTK+<3*2>,R0,10$ ;NOT FIRST ITEM IN STACK?
+    249	001202	012704 	000000G			MOV	#LOLMAR,R4	;SET FOR INITIAL LIST INDENT
+    250	001206	066704 	000000G		10$:	ADD	LMARG,R4	;CALCULATE NEW LEFT MARGIN
+    251	001212	020467 	000000G			CMP	R4,RMARG	;OVERLAP RIGHT MARGIN?
+    252	001216	002407 				BLT	20$		;IF LT NO
+    253	001220	004767 	000000G			CALL	$ERMSG		;WARN USER ABOUT OVERLAP
+    254	001224	000000G				.WORD	LSTERR		;
+    255	001226	004767 	000000G			CALL	ONPAG		;INDICATE WHICH PAGE IT WAS ON
+    256	001232	016704 	000000G			MOV	LMARG,R4	;REINITIALIZE TO LEFT MARGIN
+    257	001236	010467 	000000G		20$:	MOV	R4,LMARG	;SET NEW LEFT MARGIN
+    258	001242	016767 	000000G	000000G		MOV	ELSTC,CMADR	;SET EXPECTED COMMAND ADDRESS
+    259	001250	000207 				RETURN			;
+    260	001252	000167 	000000G		30$:	JMP	ILCM		;
+    261
+    262					;
+    263					; LIST ELEMENT COMMAND
+    264					;
+    265
+    266	001256	004714 			LSTEL::	CALL	(R4)		;GET LIST PAGE TEST COUNT
+    267	001260	016703 	000000G			MOV	LSTPT,R3	;DEFAULT IS CURRENT VALUE
+    268	001264	020367 	000000G			CMP	R3,PNLPG	;VALUE WITHIN REASON?
+    269	001270	101370 				BHI	30$		;IF HI NO
+    270	001272	010367 	000000G			MOV	R3,LSTPT	;SET NEW LIST PAGE TEST COUNT
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-5
+
+
+    271	001276	004767 	000000G			CALL	TESTP		;TEST IF PAGE SHOULD BE BROKEN
+    272	001302	016701 	000000G			MOV	LSTVS,R1	;GET LIST ELEMENT VERTICLE SPACING
+    273	001306	004767 	000000G			CALL	LSTTP		;PERFORM LIST SPACING
+    274	001312	012767 	177774 	000000G		MOV	#-4,INDCT	;INDENT LIST ELEMENT FOUR SPACES
+    275	001320	105267 	000000G			INCB	LSTCT		;INCREMENT LIST ELEMENT NUMBER
+    276	001324	012705 	000002G			MOV	#SDINP+2,R5	;POINT TO SECONDARY INPUT LINE DESCRIPTOR
+    277	001330	012715 	177777G			MOV	#SDBUF-1,(R5)	;INITIALIZE DESCRIPTOR
+    278	001334	011545 				MOV	(R5),-(R5)	;
+    279	001336	116700 	000000G			MOVB	LSTCT,R0	;GET CURRENT ELEMENT NUMBER
+    280	001342	004767 	000534 			CALL	CVTNM		;CONVERT NUMBER TO ASCII
+    281	001346	012701 				MOV	(PC)+,R1	;GET QUOTED SPACE AND PERIOD
+    282	001350	   056 	   043 			.ASCII	/.#/		;
+    283	001352	004767 	000554 			CALL	SDWCI		;WRITE PERIOD INTO BUFFER
+    284	001356	000301 				SWAB	R1		;SWAP QUOTED SPACE TO LEFT BYTE
+    285	001360	004767 	000546 			CALL	SDWCI		;WRITE QUOTED SPACE INTO BUFFER
+    286	001364	126727 	000000G	000012 		CMPB	LSTCT,#10.	;TWO DIGIT NUMBER?
+    287	001372	002002 				BGE	40$		;IF GE YES
+    288	001374	004767 	000532 			CALL	SDWCI		;WRITE ANOTHER QUOTED SPACE
+    289	001400	004767 	000000G		40$:	CALL	$FRCND		;FORCE TO LOGICAL END OF COMMAND
+    290	001404	004767 	000000G			CALL	CCIN		;READ BREAK CHARACTER
+    291	001410	004767 	000516 			CALL	SDWCI		;WRITE CHARACTER INTO SECONDARY BUFFER
+    292	001414	105167 	000000G		LINEP:	COMB	$SDISW		;SET SECONDARY INPUT FLAG
+    293	001420	005726 				TST	(SP)+		;CLEAN STACK
+    294	001422	004767 	000000G			CALL	LINSET		;RESET LINE PARAMETERS
+    295	001426	000167 	000000G			JMP	TEXT		;PROCESS TEXT
+    296						.DSABL	LSB
+    297
+    298					;
+    299					; END LIST COMMAND
+    300					;
+    301
+    302	001432	016700 	000000G		ELIST::	MOV	LSTKP,R0	;GET CURRENT LIST STACK POINTER
+    303	001436	014067 	000000G			MOV	-(R0),CMADR	;RESTORE EXPECTED COMMAND ADDRESS
+    304	001442	014001 				MOV	-(R0),R1	;GET FLAG BYTE AND SPACING COUNT
+    305	001444					BITNE	#SPECF,R1,10$	;SPECIAL PROCESSING PREVIOUSLY ACTIVE?
+    306	001452	042715 	000000G			BIC	#SPECF,(R5)	;CLEAR SPECIAL PROCESSING ACTIVE FLAG
+    307	001456	114067 	000000G		10$:	MOVB	-(R0),LSTCT	;RESTORE PREVIOUS LIST ELEMENT NUMBER
+    308	001462	114067 	000000G			MOVB	-(R0),LMARG	;RESTORE PREVIOUS LEFT MARGIN
+    309	001466	010067 	000000G			MOV	R0,LSTKP	;SAVE NEW LIST STACK POINTER
+    310	001472	012702 	000000G			MOV	#LFSPAC,R2	;SET FINAL SKIP COUNT
+    311	001476	000167 	000000G			JMP	SKIPN		;SKIP LINES
+    312
+    313					;
+    314					; NOTE COMMAND
+    315					;
+    316
+    317	001502	012703 	000010 		NOTE::	MOV	#8.,R3		;SET PAGE TEST COUNT
+    318	001506	004767 	000000G			CALL	TESTP		;TEST IF PAGE SHOULD BE BROKEN
+    319	001512	026767 	000000G	000000G		CMP	$HDRSW,LINEC	;IN HEADER REGION OF PAGE?
+    320	001520	002004 				BGE	3$		;IF GE YES
+    321	001522	012702 	000000G			MOV	#NHSPAC,R2	;SET LINE COUNT
+    322	001526	004767 	000000G			CALL	SKIPN		;SKIP LINES
+    323	001532	012703 	000000C		3$:	MOV	#NPMARG*2,R3	;ASSUME AT LEFT MARGIN
+    324	001536	012704 	000000G			MOV	#RMARG,R4	;POINT TO RIGHT MARGIN COUNT
+    325	001542	012446 				MOV	(R4)+,-(SP)	;CALCULATE SPREAD IN MARGINS
+    326	001544					TSTEQ	(R4),7$		;AT LEFT MARGIN?
+    327	001550	012703 	000000C			MOV	#NSMARG*2,R3	;SET SECONDARY INDENT VALUE
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-6
+
+
+    328	001554	161416 			7$:	SUB	(R4),(SP)	;
+    329	001556	020326 				CMP	R3,(SP)+	;SPREAD LARGE ENOUGH?
+    330	001560	002406 				BLT	10$		;IF LT YES
+    331	001562	004767 	000000G			CALL	$ERMSG		;WARN USER ABOUT MARGIN
+    332	001566	000000G				.WORD	NOTERR		;
+    333	001570	004767 	000000G			CALL	ONPAG		;OUTPUT PAGE NUMBER
+    334	001574	005003 				CLR	R3		;INDICATE NO ADJUSTMENT
+    335	001576	011467 	000000G		10$:	MOV	(R4),NOTLM	;SAVE CURRENT LEFT MARGIN
+    336	001602	014467 	000000G			MOV	-(R4),NOTRM	;SAVE CURRENT RIGHT MARGIN
+    337	001606	006203 				ASR	R3		;REDUCE TO ACTUAL MARGIN REDUCTION
+    338	001610	160324 				SUB	R3,(R4)+	;REDUCE RIGHT MARGIN
+    339	001612	060314 				ADD	R3,(R4)		;INCREASE LEFT MARGIN
+    340	001614	011567 	000000G			MOV	(R5),NOTSV	;SAVE CURRENT FLAGS WORD
+    341	001620	052715 	000000C			BIS	#FILLF!JUSTF!PJUSTF!SPECF!NOTF,(R5) ;SET FLAGS
+    342	001624	016767 	000000G	000000G		MOV	CMADR,NOTCM	;SAVE CURRENT EXPECTED COMMAND ADDRESS
+    343	001632	016767 	000000G	000000G		MOV	ENOTE,CMADR	;SET EXPECTED COMMAND ADDRESS
+    344	001640	012705 	000002G			MOV	#SDINP+2,R5	;GET ADDRESS OF SECONDARY INPUT DESCRIPTOR
+    345	001644	012715 	177777G			MOV	#SDBUF-1,(R5)	;INITIALIZE DESCRIPTOR
+    346	001650	011545 				MOV	(R5),-(R5)	;
+    347	001652	004767 	000000G			CALL	SETBF		;TRANSFER TEXT TO BUFFER
+    348	001656					CMPNE	(R5),2(R5),30$	;ANY TEXT GIVEN?
+    349	001664	012703 	000053'			MOV	#NOTET,R3	;POINT TO NOTE TEXT PROTOTYPE
+    350	001670	112301 			20$:	MOVB	(R3)+,R1	;GET NEXT CHARACTER IN STRING
+    351	001672	001404 				BEQ	30$		;IF EQ DONE
+    352	001674	010504 				MOV	R5,R4		;SET DESCRIPTOR ADDRESS
+    353	001676	004767 	000000G			CALL	WCI		;WRITE CHARACTER IN BUFFER
+    354	001702	000772 				BR	20$		;
+    355	001704	016702 	000000G		30$:	MOV	RMARG,R2	;CALCULATE SPACE COUNT TO CENTER NOTE TEXT
+    356	001710	061502 				ADD	(R5),R2		;
+    357	001712	166502 	000002 			SUB	2(R5),R2	;
+    358	001716	166702 	000000G			SUB	LMARG,R2	;
+    359	001722	006202 				ASR	R2		;
+    360	001724	066702 	000000G			ADD	LMARG,R2	;
+    361	001730	004767 	000000G			CALL	NSPAC		;SPACE TO TEXT POSITION
+    362	001734	010504 				MOV	R5,R4		;SET ADDRESS OF LINE DESCRIPTOR
+    363	001736	004767 	000000G			CALL	PSTRPA		;OUTPUT NOTE TEXT
+    364	001742	012702 	000001G			MOV	#NASPAC+1,R2	;SET LINE COUNT
+    365	001746	000167 	000000G			JMP	SKIPN		;SKIP LINES
+    366
+    367					;
+    368					; END NOTE COMMAND
+    369					;
+    370
+    371	001752	016715 	000000G		ENOTC::	MOV	NOTSV,(R5)	;RESTORE FLAGS WORD
+    372	001756	016767 	000000G	000000G		MOV	NOTCM,CMADR	;RESTORE PREVIOUS EXPECTED COMMAND ADDRESS
+    373	001764	016767 	000000G	000000G		MOV	NOTRM,RMARG	;INCREASE RIGHT MARGIN
+    374	001772	016767 	000000G	000000G		MOV	NOTLM,LMARG	;DECREASE LEFT MARGIN
+    375	002000	012702 	000000G			MOV	#NFSPAC,R2	;SET SKIP COUNT
+    376	002004	000167 	000000G			JMP	SKIPN		;SKIP LINES
+    377
+    378					;
+    379					; NUMBER APPENDIX COMMAND
+    380					;
+    381
+    382						.ENABL	LSB
+    383	002010	004767 	000000G		NAPDX::	CALL	CCIN		;READ NEXT CHARACTER
+    384	002014					CMPEQ	#SPC,R1,NAPDX	;SPACE?
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-7
+
+
+    385	002022					CMPEQ	#TAB,R1,NAPDX	;TAB?
+    386	002030	022701 	000101 			CMP	#'A,R1		;LETTER?
+    387	002034	101011 				BHI	10$		;IF HI NO
+    388	002036	022701 	000132 			CMP	#'Z,R1		;LETTER?
+    389	002042	103406 				BLO	10$		;IF LO NO
+    390	002044	162701 	000101 			SUB	#'A,R1		;SET FOR NEXT APPENDIX COMMAND
+    391	002050	110167 	000000G			MOVB	R1,APNDN	;
+    392	002054	000207 				RETURN			;
+    393
+    394					;
+    395					; NUMBER CHAPTER COMMAND
+    396					;
+    397
+    398	002056	004714 			NCHPT::	CALL	(R4)		;GET CHAPTER NUMBER
+    399	002060	000167 	000000G		10$:	JMP	ILCM		;MUST BE A CHAPTER NUMBER
+    400	002064	005303 				DEC	R3		;BACK OFF NUMBER BY ONE
+    401	002066	022703 	000377 			CMP	#255.,R3	;LEGAL CHAPTER NUMBER?
+    402	002072	101772 				BLOS	10$		;IF LOS NO
+    403	002074	110367 	000000G			MOVB	R3,CHPTN	;SET FOR NEXT CHAPTER COMMAND
+    404	002100	000207 				RETURN			;
+    405						.DSABL	LSB
+    406
+    407					;
+    408					; SUBROUTINE TO CONVERT A NUMBER TO ASCII ZERO SUPRESSED
+    409					;
+    410
+    411	002102	012701 	000012 		CVTNM:	MOV	#10.,R1		;SET DIVISOR
+    412	002106	004767 	000000G			CALL	$DIV		;DIVIDE
+    413	002112	010146 				MOV	R1,-(SP)	;SAVE REMAINDER
+    414	002114					TSTEQ	R0,10$		;NO MORE DIGITS TO CONVERT?
+    415	002120	004767 	177756 			CALL	CVTNM		;CONVERT ANOTHER
+    416	002124	012601 			10$:	MOV	(SP)+,R1	;RETRIEVE CHARACTER
+    417	002126	062701 	000060 			ADD	#'0,R1		;CONVERT TO ASCII
+    418	002132	010504 			SDWCI:	MOV	R5,R4		;SET ADDRESS OF LINE DESCRIPTOR
+    419	002134	000167 	000000G			JMP	WCI		;WRITE CHARACTER IN BUFFER
+    420
+    421		000001 				.END
+FMTCM	MACRO M1113  27-JUL-87 15:46  PAGE 2-8
+SYMBOL TABLE
+
+APNDN = ****** GX	HEADR   000536RG 	LSTTP = ****** GX	NSPAC = ****** GX	SKIPN = ****** GX
+APNDX   000074RG 	H$$PHN= 000000   	LSTVS = ****** GX	NSPNG = ****** GX	SPC   = ****** GX
+APNMG   000000R  	ILCM  = ****** GX	MIXED   000037R  	ONPAG = ****** GX	SPCNG = ****** GX
+CCIN  = ****** GX	INDCT = ****** GX	NAPDX   002010RG 	PAGEC = ****** GX	SPECF = ****** GX
+CHAPT   000012R  	JUSTF = ****** GX	NASPAC= ****** GX	PAGENO= ****** GX	STTLP1= ****** GX
+CHPTN = ****** GX	LFSPAC= ****** GX	NCHPT   002056RG 	PAGHD = ****** GX	STTLP2= ****** GX
+CHPTR   000102RG 	LINEC = ****** GX	NFSPAC= ****** GX	PD    = ****** GX	S1    = ****** GX
+CMADR = ****** GX	LINEP   001414R  	NHEAD   000530RG 	PJUSTF= ****** GX	TAB   = ****** GX
+CR    = ****** GX	LINSET= ****** GX	NHSPAC= ****** GX	PNLPG = ****** GX	TESTP = ****** GX
+CVTNM   002102R  	LISTC   001102RG 	NOTCM = ****** GX	PRMRG = ****** GX	TEXT  = ****** GX
+DECPRT= ****** GX	LMARG = ****** GX	NOTE    001502RG 	PSTRPA= ****** GX	TTLP1 = ****** GX
+ELIST   001432RG 	LOLMAR= ****** GX	NOTERR= ****** GX	RMARG = ****** GX	TTLP2 = ****** GX
+ELSTC = ****** GX	LOWER   000023R  	NOTET   000053R  	SDBUF = ****** GX	UPPER   000060R
+ENOTC   001752RG 	LSLMAR= ****** GX	NOTF  = ****** GX	SDINP = ****** GX	WCI   = ****** GX
+ENOTE = ****** GX	LSTCT = ****** GX	NOTLM = ****** GX	SDWCI   002132R  	$DIV  = ****** GX
+FILLF = ****** GX	LSTEL   001256RG 	NOTRM = ****** GX	SEMI  = ****** GX	$ERMSG= ****** GX
+FMSG  = ****** GX	LSTERR= ****** GX	NOTSV = ****** GX	SETBF = ****** GX	$FRCND= ****** GX
+FOUT  = ****** GX	LSTK  = ****** GX	NPMARG= ****** GX	SETTL = ****** GX	$HDRSW= ****** GX
+F.1   = ****** GX	LSTKP = ****** GX	NSMARG= ****** GX	SHFUC = ****** GX	$SDISW= ****** GX
+HEADP   000356RG 	LSTPT = ****** GX
+
+. ABS.	000000	   000
+      	002140	   001
+ERRORS DETECTED:  0
+
+VIRTUAL MEMORY USED:  1164 WORDS  ( 5 PAGES)
+DYNAMIC MEMORY:  2414 WORDS  ( 9 PAGES)
+ELAPSED TIME:  00:00:26
+FMTCM,[100,30]FMTCM/-SP=[100,10]RNPRE,FMTCM
+ be converted to lower case.  Any letter not  preceeded  by  one  of
+these  characters  is  transmitted  in  the current mode.  The mode is initially
+upper case, and is changed by the occurrance  of  two  successive  case  control
+characters.   Two  circumflexes (^^) cause the mode to be set to upper case, and
+two back-slashes (\\) cause the mode to be set to lower case.
+
+The use of the above corresponds to the use of the shifower case.  To type one letter in
+upper case, the shift key is used.  The shift-lock is set to type  a  series  of
+upper case letters, after which it is released.
+
+The following shows the uses of the case control characters:
+
+     ^HERE IS A ^SAMPLE ^SENTENCE IN ^^UPPER CASE\\ AND LOWER CASE.
+
+     becomes:
+
+     Here is a Sample Sentence in UPPER CASE and lower case.
+
+
+
+                                      NOTE
+
+        101 to 132 octal, that is, the upper case letters.
+               Any actual lower case letters (codes  141  to  172
+               octal) appearing in the source will be transmitted
+               unchanged.  If the source is prepared on a  device
+               such  as  an  LA36  DECwriter or model 43 Teletype
+               which produce letters of the proper case, the mode
+               should  be  set  to upper case aainder.
+
+
+An additional character, less-than (<, 074 octal), capitalizes the  entire  word
+it  precedes.   It then returns the file to the current case.  This character is
+not engaged unless preceded by the FLAGS  CAPITALIZE  command.   Similarly,  the
+FLAGS  HYPHENATE  command  engages  the special character equals (=, 075 octal),
+which causes hyphenization to be suspended for the word it precedes.
+
+
+
+5.2  Special Characte6 octal) is  used  to  specify  underscoring.
+
+
+
+
+
+
+
+
+
+SOURCE FILE FORMAT                                                      Page 5-3
+
+
+
+     The  ampersand  will  cause  the  character following it to be underscored,
+     e.g. &f&o&o becomes _f_o_o.
+
+     Underlining of a string of characters can also be  specified  in  a  manner
+     similar  to  that of the shift lock operations described above.  An appear-
+of all
+     following  characters except space.  An appearance of ampersand preceded by
+     backslash (\&) will disable this mode.
+
+#  Number Sign   Explicit space
+
+     It is occasionally necessary to include spaces in the text which should not
+     be  treated  as  word  separators.   For  this  purpose,  RUNOFF treats the
+     number-sign character (#, 043 octal) as a  quoted  space;   i.e.   it  will
+     print  as  exac to a carriage return.
+
+_  Underline     Quote next character
+
+     To allow the appearance of the special characters (ampersand,  number-sign,
+     circumflex,  or back-slash) in the output, the underscore character (_, 137
+     octal) is used as a quote character.  The character  immediately  following
+     an  underscore will be transmitted to the output with no formatting effect.
+     The underscore itself is thus another  _\, __, and _#.
+
+^  Circumflex    Upper-case shift or mode lock
+
+     As described above, the circumflex character (^) is  used  to  convert  the
+     letter  following  to upper-case.  It is also used to lock the case mode in
+     upper case, and the underline mode to "underline all text".  If  it  is  to
+     appear  in  the  printed  text,  it must be preceded by the quote character
+     (_^).
+
+\   Backslash    Lower-cas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      

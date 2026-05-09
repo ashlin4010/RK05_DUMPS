@@ -1,0 +1,12 @@
+$\
+
+
+
+
+$N$OA$<NAME>$OB$<FIRM>$OC$<STREET>$OD$<TOWN> $<PCODE>	$<rn<$C
+$N$OE$<NAME>$OF$<FIRM>$OG$<STREET>$OH$<TOWN> $<PCODE>	$<rn<$C
+$N$OI$<NAME>$OJ$<FIRM>$OK$<STREET>$OL$<TOWN> $<PCODE>	$<rn<
+$O!$IA	 $IE	  $II
+$IB	 $IF	  $IJ
+$IC	 $IG	  $IK
+$ID		 $IH		  $IL$\

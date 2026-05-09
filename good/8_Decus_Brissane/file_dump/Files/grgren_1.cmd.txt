@@ -1,0 +1,9 @@
+.; RENAME command processor       G. Grinton        V01.3
+.;
+	.ENABLE SUBSTITUTION
+	.ENABLE QUIET
+.;
+	.IF P2 EQ "" .ASKS P2 From
+	.IF P3 EQ "" .ASKS P3 To
+.;
+PIP 'P3'/NV/RE='P2'

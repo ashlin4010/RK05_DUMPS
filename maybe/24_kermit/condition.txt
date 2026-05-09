@@ -1,0 +1,38 @@
+Condition
+
+Lots of ware
+
+No major issues
+
+Read last
+
+6/10
+
+Got a read but 14 read errors
+
+
+.DIR RK2:
+
+SGNBLD.CME     1 06-Oct-88      KERDOS.ASC    44 06-Oct-88
+FIL   .BAD    36 06-Oct-88      FIL2  .BAD    63 06-Oct-88
+KERRSX.ASC     1 06-Oct-88      RT4HEX.EOF     1 06-Oct-88
+RT4MAC.HDR     1 06-Oct-88      RT4MAC.EOF     1 06-Oct-88
+OLDRT4.MAC     3 06-Oct-88      README.1       0 07-Oct-88
+MAPDKS.CMD     1 03-Nov-88      SGNBLD.CMD    13 03-Nov-88
+UNMDKS.CMD     1 03-Nov-88      KINTRO.DOC    60 03-Nov-88
+SYSGEN.CMD    74 03-Nov-88      RECEV .MAC    34 03-Nov-88
+0A    .LIS    71 03-Nov-88      0B    .LIS     9 03-Nov-88
+K11AAA.AAA    10 03-Nov-88      K11ART.RNO    23 03-Nov-88
+KLTR  .TEX     9 03-Nov-88      0000  .LIS    28 03-Nov-88
+KMICRO.DOC    64 03-Nov-88      README.TXT    41 03-Nov-88
+APANN .TXT     5 03-Nov-88      K11ASM.RT4     4 03-Nov-88
+KPROTO.MSS   339 03-Nov-88      COMMER.DOC    16 03-Nov-88
+CURREN.DOC    17 03-Nov-88      FLYER .DOC    16 03-Nov-88
+FLYER .MSS    19 03-Nov-88      K11FIL.DOC     9 03-Nov-88
+K11HLP.HLP   109 03-Nov-88      K11HLP.RNO   111 03-Nov-88
+K11INS.DOC    41 03-Nov-88      K11INS.RNO    38 03-Nov-88
+K11INS.MAC     1 03-Nov-88      KPROTO.DOC   497 03-Nov-88
+KUSER .DOC   958 03-Nov-88      KUSER .MSS   234 03-Nov-88
+K11ASM.DMP    35 03-Nov-88
+ 41 Files, 3038 Blocks
+ 1748 Free blocks

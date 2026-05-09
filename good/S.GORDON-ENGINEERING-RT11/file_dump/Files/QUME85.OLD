@@ -1,0 +1,1576 @@
+;PROGRAM QUME85.MAC - TO INTERFACE DAISYWHEEL PRINTER SERIALLY AND CENTRONICS
+;
+;PROGRAM FLOW DESCRIPTION:
+;
+;RESTART:	initialise stack pointer
+;		set output buffers high (=inactive)
+;	 	clear all registers, clear all memory
+;		check romsum, ram.
+;		send XOFF to host.
+;		Select printer.
+;		Issue RESTORE to printer.
+;		Wait for CHECK to clear;
+;			If time exceeds 2 sec set error
+;			Else issue XON to host
+;			Indicate READY LED
+;			Endif
+;		END OF INITIALISATION PROCEDURE.
+;
+;
+;MAIN:	If printer in CHECK
+;		Send XOFF to host
+;		Clear READY lamp
+;		Sound beeper
+;
+;
+;		If input buffer not empty
+;			If Printer Command Buffer empty
+;				Take a char off inbuf
+;				If char=<ESC>
+;					Call COMAND
+;				Endif
+;				Call INTERP	;(places stuff in prtbuf)
+;			Endif
+;			Else indicate green BUFEMPTY+READY LED
+;
+;				
+;XON:	Set XON flag
+;	Generate own timing, send XON.
+;	Clear XOFF flag
+;
+;
+;XOFF:	Set XOFF flag.	;(Comms, finding both XON and XOFF flags set,
+;			;will despatch an XOFF in synch with any further
+;			;incoming character. Once XOFF is despatched, 
+;			;flag XON is cancelled. If buffer is emptied
+;			;before another char is received, and XOFF has
+;			;not been transmitted at all, XOFF flag is reset.
+;			
+;
+;COMSVC:	On detection of an edge, delay for 1/2 bit time and start
+;		timing TBIT-TPROC before next sample til stop bit.
+;		Count pulses and when all 7 data bits have been received
+;		spend a defined time until the stop bit edge has gone past
+;		massaging into a char and putting in buffer.
+;		Process char during stop bit.
+;	Alternative 1: connect an accurate external "monostable" oscillator
+;	to TTL I/O and synch with point half way through start bit.
+;
+;	Alternative 2: Provide external UART with 13.24MHz divider chain
+;	interfaced by TTL I/O.
+;
+;
+;SYSTEM STATE CONTROL:
+;	Propose that the system state be kept in a byte SYSTAT which is used
+;	to keep track of the various procedures' states with minimal
+;	instruction count. Flag bits could be as follows:
+;	7	ERROR     (refer ERRBUF for identification)
+;	6	AUTOFF ON
+;	5	AUTOCRLF ON
+;	4	AUTOLF ON
+;	3	PRTBUF FULL
+;	2	INBUF EMPTY
+;	1	1=>XON, 0=>XOFF
+;	0	Transmission (XON OR XOFF) required and not yet sent
+;
+;	This byte would be kept up to date by:
+;		a) - scan of parameters during idle loop
+;		b) - modification of flags as procedures see changes occur.
+;
+;	The byte could be used by invoking a procedure based on the outcome
+;	of a particular mask of the SYSTAT byte. Eg the INTERP procedure is
+;	only invoked when bits 3, 2, 1 and 0 are all false.
+;	This may prove unwieldy in some circumstances when it will be better
+;	to check the parameters that give rise to the flags for the sake of
+;	absolute up to the minute accuracy.
+;
+;PRIORITIES:
+;	Overall: permit no errors to go unflagged; minimise data loss.
+;	First: respond on interrupt to any incoming characters
+;	Second: ensure printer is not kept waiting for output buffer transfers
+;	Third: process input ring characters into printer ring.
+;		- these priorities imply a polling loop and interrupt
+;		  service routine kernel structure as follows:
+;LOOP:		If (NCHR<32 .AND. XOFF) Call XON!If Xoff pending but chrs stop
+;		Check error flags and printer status
+;			Display any errors (eg ribbon, paper out)
+;		Back to LOOP if printer not ready (keep servicing comms)
+;		Else CALL PRINT!(Service printer if it's not blocked)
+;		If (NCHR .GT. ZERO) Call INTERP
+;		
+;COMSVC:	Mask interrupt.
+;		If (XON .AND. XOFF) Load TXBYTE = XOFF
+;			else NOPs to equalise times
+;		Read start bit, False start bit ERROR if =0 , NT1 times.
+;		If (XON .AND. XOFF) Clear XON, load SO (SIM instr) !START bit
+;			else NOP's to equalise times
+;	Repeat next sequence (8) times until all (8) data bits received:
+;		Delay NT2 times some operation to middle of first data bit
+;		Read (RIM) SI line to A reg (bit 7)
+;		Store A temporarily in register (B?)
+;		If (XOFF) R
+;
+;
+;--------------------------------------------------------------------------
+;          RESPONSE TIMING - SOFTWARE OVERHEAD
+;
+;	1. At speeds less than 9600 baud no delays will be caused by software
+;	   processing taking place during the greater than 200us stop bit
+;          period which is expected to keep pace with the incoming data.
+;
+;	2. Speeds at or above 9600 baud will not permit adequate processing
+;	   during stop bit period, however the printer speed limits the
+;	   average data throughput to 55 (max) characters per second.
+;	   At these speeds the incoming character rate will be 960 or 1920
+;	   characters per second so that the buffer will fill in 1 or 2
+;	   seconds. It will be necessary to process INTERP during XOFF
+;	   periods only. The printer command buffer only should be processed
+;	   during character stop bit times. However, even if the processing
+;	   of INTERP proceeded in the background in this way, the buffer
+;	   obtains 550 characters in 570 ms for which the printer is kept
+;	   busy for upwards of 10 seconds so the overhead in processing comms
+;	   bitwise in software is at worst 5.5%.
+;	   THIS IS NOT SIGNIFICANT IN TERMS OF THE PRINCIPAL OBJECTIVE
+;
+;	CONCLUSION: Design the comms handling to run on interrupt and the
+;	remainder to execute continuously and although 1 second hiatus may
+;	be observed every 20 seconds at 9600 baud, full speed will be
+;	achieved at lower baud rates down to 600 below which the comms
+;	will dictate character printing rate.
+;
+;
+;
+;--------------------------------------------------------------------------
+;
+;FIFOIN: ?
+;		FIFO INPUT BUFFER MANAGEMENT
+;
+;	Suggest buffer 512(10) long with XON trigger at 32 chrs remaining
+;	and XOFF trigger at 64 chrs from full, so that initially:
+;		BUFBOT = 2000H
+;		BUFLO  = 2020H
+;		BUFHI  = 21B0H
+;		BUFTOP = 21FFH
+;	Actual oldest and newest characters would be indexed by registers
+;	for speed of access; eg BC=OLDEST, DE=NEWEST.
+;
+;	Buffer addressing arithmetic would be limited to 9 bits by masking
+;	bit 1 in the upper byte after any addition to prevent 21FF to 2200
+;	rollover and force 21FF to 2000 rollover. The upper byte would then
+;	always be either 20 or 21. That is OK for assigning addresses, but
+;	XON/XOFF decision making would be better based on a NCHRS counter
+;	which kept a tally of the number of characters in the buffer at any
+;	time.
+;
+;	So, when a character is received in full (held in A register);
+;		STAX D		;put chr where pointed to by DE
+;		INX DE		;point to next remaining empty place
+;		MOV A,D		;Get D byte in A
+;		ANI 21H		;Mask off all xcept bits 5 and 0.
+;		MOV D,A		;replace D (force 21FF to 2000 rollover DE)
+;		LXI H,NCHRS	;Point to character count 
+;		INR M		;and increment it.
+;
+;	and to remove a character to pass it to the INTERP routine via A;
+;		LXI H,NCHRS	;Point to character count 
+;		*MOV A,M	;Put it in A to test it.
+;		*JZ  LOOP	;Abort if no characters left
+;		DCR M		;else decrement it in situ,
+;		INX B		;Increment BC to point to oldest chr.
+;		MOV A,B		;Get B byte in A
+;		ANI 21H		;Mask off all xcept bits 5 and 0.
+;		MOV B,A		;replace B (force 21FF to 2000 rollover BC)
+;		LDAX B		;put oldest chr in A register
+;
+;NOTE -	1. (*) test and JZ LOOP may be done in another routine if convenient.
+;	It was convenient to do here simply because we were pointing to
+;	NCHRS and we had to do the test sometime before completing this
+;	procedure.
+;
+;	2. DE holds the address of the buffer location to which the next
+;	incoming byte will be passed, whereas BC holds the address from which
+;	a buffer byte was most recently grabbed.  This is because
+;	the A register holds procedure input and output respectively in the
+;	two cases, and must be used for other purposes in the procedures.
+;
+;	3. I think in reflecting that I would do better to use only BC for
+;	the input ring buffer and reserve DE for the printer command
+;	ring buffer. After all, the command buffer will have more traffic
+;	eg a chr will imply at least CHAR, CARR data strobes. Perhaps these
+;	pointers should both be in memory anyway. Another factor is that
+;	because the printer is predictable and slow there is no need for it
+;	to have a large buffer for INTERP to work hard at filling in bursts.
+;	For this, one-byte counters (Max ring size 128) would suffice.
+;
+;	4. If buffer size was ever increased, the mask would change to account
+;	for the (odd) number of 512 byte modules ( 21 -> 23(1536), 27(2560) ).
+;	Even or peculiar sized buffers would require slower arithmetic ops.
+;
+;----------------------------------------------------------------------------
+;----------------------------------------------------------------------------
+;     CHKROM - CHECKS ROM MEMORY; CHKRWM - CHECKS RAM MEMORY;
+;     WATCH1 - SETS WATCHDOG TIMER BIT - CALLED FROM NEAR START
+;     WATCH0 - CLEARS WATCHDOG TIMER BIT - CALLED FROM END OF MAIN.
+;
+;WRITTEN FOR A PROLOG 8085 BASED 7885A PROCESSOR CARD
+;	INITIATED -  18-NOV-87
+;
+;
+;***************    INPUT AND OUTPUT MAPS    *******************
+;
+;------------ INPUT PORT USAGE ------------------
+;
+;PORT 30: STATUS			    50-way line no.
+;Bit 7 = PAPOUT L	Paper Out		49
+;Bit 6 = PRTRDY L	Printer Ready		47
+;Bit 5 = PFRDY L	Platen Ready		43*
+;Bit 4 = CARRDY L	Carriage Ready		41*
+;Bit 3 = CHRRDY L	Printwheel Ready	39*
+;Bit 2 = CHECK L	Printer fault or reset	37
+;Bit 1 = COVER L	Printer Cover Switch	34
+;Bit 0 = RIBOUT L	No Ribbon		30
+;
+;Note 1: 50-way line #45 (QUME=Input Buffer EMPTY) unused, plug polz. key.
+;*Note 2: Lines 39,41,43 all equal Input Buffer READY xcept on Twintellect.
+;
+;PORT 31: DIPSWS	(Option DIP switches)	INV LOGIC (Gnded=SET)
+;Bit 7 = WPSWHL	WPS petals, hammers, ribnadv but fixed spacing.
+;Bit 6 = RIBNUP	
+;Bit 5 = AUTOFF when next line would be in last inch of page.
+;Bit 4 = AUTOLF	on CR receipt
+;Bit 3 = AUTOCRLF (else jam at margin of overlong lines)
+;Bit 2 = BAUD2	) 0=>Centronics via 32,33I,31O(7,6); 1=>SELFTEST; Else serial
+;Bit 1 = BAUD1	) 7	6	5	4	3	2	1	0
+;Bit 0 = BAUD0	)9k6	4k8	2k4	1k2	600	300	TEST	CENT
+;
+;
+;PORT 32: PNLSWS	(Front panel switches)	INV LOGIC (Gnded=SET)
+;Bit 7 = WPS PROPORTIONAL
+;Bit 6 = SPACING1	)2.0/1.5/1.0/0.5
+;Bit 5 = SPACING0
+;Bit 4 = PITCH1		)10/12/15/GRAPHICS
+;Bit 3 = PITCH0
+;Bit 2 = FORMLEN2	)
+;Bit 1 = FORMLEN1
+;Bit 0 = FORMLEN0
+;
+;PORT 33: CNDATA	(CENTRONICS, WHEN USED)
+;
+;------------ OUTPUT PORT USAGE -----------------
+;
+;
+;NOTE ON PRINTER DATALINES:
+;	For carriage control, lines D512 to D1/2 specify an 11 bit offset
+;	of 2048 by 120th inch steps, with sign +/- specified by D1024.
+;	However the actual platen width is 13.2 inches (1584 120ths) and
+;	limits the available rangee according to current position.
+;
+;	For platen control, lines D512 to D1 (!) specify a 10 bit offset of
+;	1024 by 48th inch steps, with sign +/- specified by D1024. Actual
+;	motion is not otherwise limited except where single sheets are
+;	involved.
+;
+;	For printwheel control, lines D64 to D1 specify a 7 bit ASCII code.
+;	Note that printwheel positions 2 and 4 are addressed by the usually
+;	non-printing codes DELete (7FH) and SPace (20H). Access to these
+;	petals is via (sprint 9) escape sequences <ESC></> and <ESC><SP>.
+;	To find which these are on a daisy wheel note that petal 6 is <,>
+;	and petals 4 and 2 are to the left viewed face on (numbered clockw x2)
+;	Printwheel control may also be by "external program mode" programming
+;	hammer intensity and ribbon advance along with printwheel position as
+;	is necessary for WPS and special character wheels (ROM space!).
+;
+;	Top of Form form length programming, where available, uses data lines
+;	D64 to D1 with a FF char on them while D1024 to D128 hold the form
+;	length in a non-linear sequence tabulated in the manual and is entered
+;	by a CHARACTER STROBE. The seemingly inexplicable identity between the
+;	ordinary FF command and programming of 11 inch  length is explained by
+;	the fact that Form Feed is actioned not by a character-strobed FF but
+;	by the TOF STROBE.
+;
+;PORT 30: LODAT		  50-way line no.
+;Bit 7 = D5	DATA32		8
+;Bit 6 = D4	DATA16	 	7
+;Bit 5 = D3	DATA8	 	6
+;Bit 3 = D2	DATA4	 	5
+;Bit 2 = D1	DATA2	 	4
+;Bit 1 = D0	DATA1	 	3
+;Bit 0 = D1/2	DATA1/2	 	2
+;
+;
+;PORT 31: HIDAT		   50-way line no.
+;Bit 7 = ACK	(CENTRONICS)
+;Bit 6 = BUSY	(CENTRONICS)
+;Bit 5 = ERROR	(CENTRONICS)
+;Bit 4 = D10	DATA1024	13
+;Bit 3 = D9	DATA512		12
+;Bit 2 = D8	DATA256		11
+;Bit 1 = D7	DATA128		10
+;Bit 0 = D6	DATA64		 9
+;
+;Note: D11 (D2048) only used on Twintellect.
+;
+;
+;PORT 32: STROBE
+;Bits 7,6 = PFSTR L	Platen Strobe		22
+;Bits 5,4 = CARSTR L	Carriage Strobe		20
+;Bits 3,2 = CHRSTR L	Printwheel Strobe	18
+;Bits 1,0 = RESTR L	Restore (reset) Strobe	16
+;
+;
+;PORT 33: CNTROL
+;Bits 7,6 = SELECT L	Printer Select COMMAND	32
+;Bits 5,4 = RIBLIF	Ribbon Lift COMMAND	28
+;Bits 3,2 = TOFBDT L	BDT sheet feed Strobe	26
+;Bits 1,0 = PFAUX L	NOT AVAILABLE		24
+;
+;
+;PORT 40: ERRORS
+;Bit 7 = BADROMSUM
+;Bit 6 = BADRWM
+;Bit 5 = 
+;Bit 4 = 
+;Bit 3 = 
+;Bit 2 = 
+;Bit 1 = 
+;Bit 0 = WATCHDOG SIGNAL
+;
+;PORT 41: DEBUGS
+;Bit 7 = 
+;Bit 6 = 
+;Bit 5 = 
+;Bit 4 = 
+;Bit 3 = 
+;Bit 2 = 
+;Bit 1 = 
+;Bit 0 = 
+;
+;---------------------------------------------------
+;MEMORY MAP OF THE 8085 CONTROLLER
+;EPROM FROM 0000H TO 07FFH      2K
+;RAM FROM 2000H TO 23FFH        1K
+;STACK POINTER 2400H
+;---------------------------------------------------
+;DEFINITIONS
+;
+;
+;
+;Assign Constants Data:
+;
+MEMST	EQU 2000H        ; RWM base address
+MEMSIZ  EQU 0400H        ; Amount of RWM memory
+ROMTOP  EQU 07FFH        ; Top address of ROM memory.
+;
+STATUS	EQU 30H		;Input port 30
+DIPSWS	EQU 31H		;Input port 31
+PNLSWS	EQU 32H		;Input port 32
+CNDATA	EQU 33H		;Input port 33
+;
+LODAT	EQU 30H		;Output port 30
+HIDAT	EQU 31H		;Output port 31
+STROBE	EQU 32H		;Output port 32
+CNTROL	EQU 33H		;Output port 33
+ERRORS	EQU 40H		;Output port 40
+DEBUGS	EQU 41H		;Output port 41
+;
+;
+VERSN	EQU 01H		;PROGRAM VERSION NUMBER (@ 0003)
+;
+ROMSUM	EQU 0FFH	;ROM CHECKSUM (@ 003B, use FF until known)
+;
+BEL	EQU 07H
+HT	EQU 09H
+VT	EQU 0BH
+CR	EQU 0DH
+XON	EQU 11H
+XOFF	EQU 13H
+ESC	EQU 1BH
+US	EQU 1FH
+SP	EQU 20H
+;
+BITS	EQU 08H		;No of data+parity bits in comms.
+; (Comms Counts: at 325ns clock / 6144kHz xtal. See DELAYA, DELAYB, COMSVC)
+TA300	EQU 01FH	; 300 baud timing counts
+TB300	EQU 03FH	;
+TA600	EQU 0FH		; 600 baud timing counts
+TB600	EQU 1FH		;
+TA1K2	EQU 07H		;1200 baud timing counts
+TB1K2	EQU 0FH		;
+TA2K4	EQU 03H		;2400 baud timing counts
+TB2K4	EQU 07H		;
+TA4K8	EQU 01H		;4800 baud timing counts
+TB4K8	EQU 03H		;
+TA9K6	EQU 00H		;9600 baud timing counts
+TB9K6	EQU 01H		;
+;
+FFLEN0	EQU 0210H	;Form length table.@Initially set all
+FFLEN1	EQU 0210H	;to 0210H = 528(10) = 11" x 48.
+FFLEN2	EQU 0210H	;
+FFLEN3	EQU 0210H	;
+FFLEN4	EQU 0210H	;
+FFLEN5	EQU 0210H	;
+FFLEN6	EQU 0210H	;
+FFLEN7	EQU 0210H	;
+;
+PCH0	EQU 03H		;20 pitch
+PCH1	EQU 04H		;15 pitch
+PCH2	EQU 05H		;12 pitch
+PCH3	EQU 06H		;10 pitch
+;
+SPC0	EQU 04H		;1/2 line spacing (1/12") 15pch cram only
+SPC1	EQU 06H		;3/4 line spacing (1/8")  15pch, 12pch cram
+SPC2	EQU 08H		;Single spacing (1/6")    (Normal)
+SPC3	EQU 10H		;Double spacing (1/3")
+;
+;
+;
+;----------- R/W MEMORY LOCATION ASSIGNMENTS ---------------------
+;
+;Locations 2000 (base) to 21FF (.5k) form the fifo ring ASCII buffer.
+;
+;
+;
+SYSTAT	EQU 2200H       ;SYSTEM STATE BYTE, defined as:
+;(see notes)
+;
+;Add any new flags/variables here.
+RNGNEW	EQU 2210H	;Ring 16 bit destination address next incoming byte
+RNGOLD	EQU 2212H	;Ring 16 bit source address for next outgoing byte
+NCHRS	EQU 2214H	;Ring 16 bit byte counter
+ESCFLG	EQU 2215H
+ARGCNT	EQU 2216H
+ESCSEQ	EQU 2217H	;Vectoring address for ESC processor
+;
+LODBUF	EQU 2230H	;Output port 30 buffer byte
+HIDBUF	EQU 2231H	;Output port 31 buffer byte
+STRBUF	EQU 2232H	;Output port 32 buffer byte
+CTLBUF	EQU 2233H	;Output port 33 buffer byte
+ERRBUF	EQU 2240H	;Output port 40 buffer byte
+BUGBUF	EQU 2241H	;Output port 41 buffer byte
+;
+COUNTA	EQU 224AH	;First half bit count (Loaded at reset)
+COUNTB	EQU 224BH	;Remainder whole bit cnt (Loaded at reset)
+FORMLN	EQU 224CH	;Formlength (1/48") LSB. (MSB=@224D)
+PITCH	EQU 224EH	;Char pitch (1/60")
+SPCING	EQU 224FH	;Line spacing (1/48")
+;
+;Highest 150 locations reserved for stack (see INIT routine)
+;
+RWMTOP	EQU MEMST+MEMSIZ	;Top RWM location.
+;
+;_____________________________________________________________________
+;---------------------------------------------------------------------
+;        ORG 0000H
+;POWER UP LOCATION
+START:	JMP	INIT    ;program starts here on reset power-up.
+	DB	VERSN
+;
+	ORG 0034H
+RST65:	JMP	COMSVC		;COMMS INTERRUPT 
+;
+	ORG 0038H
+RST7:	JMP	ERR1		;software RST FF if program cntr lost
+	DB	ROMSUM		;ROM "CHECKSUM" TO GIVE ZERO CHECKSUM.
+;
+;
+	ORG	0040H	;Past vector area.
+INIT:	MVI	A,00	;clear all registers
+        MOV     B,A
+        MOV     C,A
+        MOV     D,A
+        MOV     E,A
+        MOV     H,A
+        MOV     L,A
+	OUT	ERRORS		;clear indication registers
+	OUT	DEBUGS
+;
+	LXI	SP,RWMTOP+1H	;set stack pointer for top of R/W memory  
+	MVI	A,0FFH		;Set all output ports,all bits ON.
+	OUT	LODAT		;(Printer uses -ve logic interface)
+	OUT	HIDAT		;thereby resetting all printer lines H.
+	OUT	STROBE
+	OUT	CNTROL
+;
+	LXI	D,MEMST		;clear memory from bottom to top
+	LXI	B,MEMSIZ	;number of locations to be cleared
+CLEAR:	MVI	A,00
+	STAX	D		;this routine clears the required memory
+	INX	D		;next location
+	DCX	B		;decrement counter
+	MOV	A,B
+	ORA	C
+	JNZ	CLEAR		;not finished yet, B & C not 00
+;
+;
+	CALL	CHKRWM		;Check RAM integrity
+;
+;unused	CALL	WATCH1		;Set watchdog bit on
+;
+;------ Read baud rate DIPSWS and set COUNTA, COUNTB from tables.--
+	IN DIPSWS		;
+	CMA			;Use +ve logic in software
+	ANI 07H			;Keep BAUD2/1/0 bits.
+	JZ CENTRO		;All zeroes requests CENTRONICS
+	CPI 01H			;001 requests PRINTER TEST mode
+	JNZ SETTIM		;If not test, go on to set baud rates.
+;
+SETTST: LXI H,SYSTAT		;Get system state byte
+	MOV A,M			;
+	ORI 40H			;Set TEST MODE (bit 6)
+	MOV M,A			;
+	JMP RIBOPT		;and skip interface setup section.
+;
+SETTIM:	RAL			;Mult by 2 (2 table bytes per bd rate)
+	LXI H,TIMTBL-4		;Point to baud delay table*
+	MVI D,00H		;    (*NB: BAUD2/1/0=002, 2x2=4
+	MOV E,A			;    gets bottom element of the SIX
+	DAD D			;    byte-pair element TIMTBL table.)
+	XCHG			;Put resulting table address in DE
+	LDAX D			;Get first byte (TAnnn)
+	STA COUNTA		;and put into COUNTA.
+	INX D			;
+	LDAX D			;Get second byte (TBnnn)
+	STA COUNTB		;and put into COUNTB.
+	JMP AUTOPT		;Baud rates done; do other options.
+;@If required, comms options Bits, Parity Bit, Stop Bit(s) will be
+;@assigned to flag bytes at this point.
+;
+CENTRO:	NOP	;@@@@@@@@@@	;Set up CENTRONICS parallel mode
+;@Set a "Parallel" flag
+;@remember NOT to unmask serial interrupt at end of initialisation.
+;
+;
+;;;;	--- Put reset-time panel autowrap etc options in system flag -----
+AUTOPT: NOP	;@@@@@@@@I DONT THINK THIS NECESSARY: READ DIPSWS AS REQD
+;;;AUTOPT: IN DIPSWS		;
+;;;	CMA			;software +ve logic
+;;;	ANI 74H			;WPS/AUTOFF/AUTOCRLF/AUTOLF bits 6,5,4,3.
+;;;	??? Do i modify SYSTAT to accomodat? Is rotate needed or desirable?
+;;;	LXI H,SYSTAT		;
+;;;	ORA M			;Add any systat bits already set.
+;;;	STA M			;
+;
+RIBOPT:	IN DIPSWS		;Only ribbon option actioned in startup.
+	CMA			;Use +ve logic in software
+	ANI 40H			;Get bit 6 (RIBNUP).
+	JZ PNLOPT		;Else do front panel
+	MVI A,30H		;Set RIBNUP bits in output
+	STA CTLBUF		;buffer.@REMEMBER TO INCORP IN SELECT PRI@
+;
+;
+;	----------- Set up front panel switch selections -----------
+PNLOPT: IN PNLSWS		;Get front panel switch settings
+	CMA			;Use +ve logic in software
+;
+;(@@@
+;Add these SWS later as a refinement. For now, set initial defaults here
+;in software; 30H = WPSOFF:0 SNGLSPACE:01 12PITCH:10 11"FF:000  @@@):
+	MVI A,30H
+;@@@)
+;
+;	----------- Look up formlength ---------------
+	MOV B,A			;Put +ve logic panel sws aside in B
+	ANI 07H			;Get form length in bits 2/1/0
+	RAL			;Mult by 2 (2 bytes per table entry)
+	LXI H,FFTBL		;Point to table base
+	MVI D,00H		;Load offset byte
+	MOV E,A			;into DE
+	DAD D			;and add to table base address in HL
+	XCHG			;Swap resulting table address into DE
+	LDAX D			;Read table entry first value (LSB!)
+	STA FORMLN		;
+	INX D			;
+	LDAX D			;Read table entry 2nd value (MSB)
+	STA FORMLN+1		;
+;
+;	----------- Look up character pitch ---------------
+;@@@Table PCHTBL provided but not in use here!!!@@@Is there any point?
+	MOV A,B			;Get panel +ve back
+	ANI 18H			;keep PITCH1/0 bits 4,3.
+	RRC			;Get into position 3,2.
+	RRC			;Get into position 2,1.
+	RRC			;Get into base position 1,0.
+	ADI 03H			;Offset 3/60" for 6/5/4/3 60ths
+	STA PITCH		;for 10/12/15/20 pitch options.
+;
+;	----------- Look up linespacing ---------------
+	MOV A,B			;Get panel +ve back
+	ANI 60H			;keep linespacing bits 6,5.
+	RLC			;Get into position 7,6.
+	RLC			;Get into position 0,7.
+	RLC			;Get into base position 1,0.
+	LXI H,SPCTBL		;Point to linespacing table base
+	MVI D,00H		;Load offset byte
+	MOV E,A			;into DE
+	DAD D			;and add to table base address in HL
+	XCHG			;Swap resulting table address into DE
+	LDAX D			;Read table value
+	STA SPCING		;Store in spacing (1/48" count) byte.
+;
+;@@@DO OTHER SETUPS OF FLAGS HERE?? SEE "AUTOPT:"@@@
+;
+;	--------- Select Printer, Set Ribbon, Do Restore ----------
+	LXI H,CTLBUF		;Get buffer in case ribbon UP/DN
+	MOV A,M			;pending ex RIBOPT.
+	ORI 0C0H		;Add SELECT command bits 7,6.
+	MOV M,A			;to buffer
+	CMA			;Negate logic for buffer
+	OUT CNTROL		;and select printer.
+	LXI H,STRBUF		;@IS THIS BUFFER NECESSARY???
+	MVI A,03H		;Set RESTORE bit pair
+	MOV M,A			;                        "???
+	CMA			;
+	OUT STROBE		;Strobe RESTORE low
+	MVI A,0FFH		;
+	OUT STROBE		;Reset strobes
+	CMA			;                        "???
+	MOV M,A			;Update buffer           "???
+	CALL TDLAY2		;Wait 400 msec
+	CALL TDLAY2		;Wait 400 msec
+	CALL TDLAY2		;Wait 400 msec
+	IN STATUS		;Check printer status lines
+	CMA			;to +ve logic
+	CPI 00H			;Any bits set?
+	JZ PRTOK		;Skip if OK
+	LXI H,SYSTAT		;else set prt error SYSTAT bit 7
+	MOV A,M			;
+	ORI 80H			;
+	MOV M,A			;
+	LXI H,ERRBUF		;and set error port bit 5
+	MOV A,M			;
+	ORI 20H			;
+	MOV M,A			;
+	OUT ERRORS		;
+COVER:	IN STATUS		;Look for fault clearance
+	CMA			;
+	CPI 02H			;All clear, cover switch depressed?
+	JNZ COVER		;Repeat until achieved
+PRTOK:	NOP	;@@@
+;@
+;@
+;------------- END OF INITIALISATION ROUTINES ---------------------
+;
+;******************************************************************
+;
+;------------- RST6.5/SID, SOD COMMS INTERRUPT SERVICE ROUTINE -----------
+;
+;	RECEPTION of data:
+;	On detection of an edge, delay for 1/2 bit time and start
+;	timing TBIT-TPROC before next sample til stop bit.
+;	Count pulses and when all 7 data bits have been received
+;	spend a defined time until the stop bit edge has gone past
+;	massaging into a char and putting in buffer.
+;	Other processes proceed during stop bit (minimal condition)
+;	and during XOFF state (most freely).
+;	TRANSMISSION of XOFF can only be reliably done in synchronism
+;	with an incoming character. If none arrives the XOFF will of
+;	course be unnecessary and will be deflagged when the buffer empties.
+;	Suppose that we have verified the incoming start bit in interrupt
+;	(receive) mode, at half-way into the start bit. We must now output
+;	the start bit of the outgoing byte, if there is to be one. This is
+;	from SYSTAT(0): = 0 means mark is sent (no start bit), 1 sends space.
+;	Transmission of XOFF (13H) 00010011 requires the pulse trains:
+;Received:  0    x    x    x    x    x    x    x    x    1   (0)earliest next)
+;(data)	  START  0    1    2    3    4    5    6    P   STOP
+;See notes: A  B    C                                  D E F  G
+;Transmitted:  0    1    1    0    0    1    0    0    x    1
+;(XOFF)      START  0    1    2    3    4    5    6    P   STOP
+;Note:	A= RST65 interrupt flags incoming start bit
+;	B= 1/2 start bit verify, send SYSTAT0 and wait almost one bit time
+;	C= RIM to get rxlsb on RST65 flag, SIM to send TXBYTE0 on SOD line.
+;	   (NB - Process rotates, stores etc outside the RIM,SIM pair to
+;	   optimise timing accuracy and permit mask states to be retained):
+;@		LDA TXBYTE	;After processing interrupt service pushes.
+;@		........	;........
+;@		MOV A,D		;
+;@		RRC 		;rotate required txbit round into bit 7
+;@		MOV D,A		;Put rotated version away for nexttime.
+;@		
+;@		RIM		;get mask/interruptflag register.
+;@		MOV E,A		;Put received stuff aside
+;		
+;	D = TXBYTE parity or data7 bit.
+;	E = STOP time arrives - check that SID back to MARK condition. Note
+;	     that if parity bit was MARK for incoming  (and outgoing, if sent)
+;	     then can proceed to step F as soon as P verified (and sent if TX)
+;	F = When stop verified, proceed to put incoming character into buffer
+;	     within 1/4 bit time before re-enabling interrupt
+;
+;    --- RECALL bit details:
+;	Let SYSTAT(1,0) = <XON,/XOFF>,<TXREQUIRED>
+;	Then bit 0, <TXREQUIRED> can be used as the start bit, (being careful
+;	to note that the start bit is space condition, not mark; must invert).
+;	...  Recall SYSTAT(1,0)  ...
+;	11 = XON required
+;	10 = XON sent, ie comms on.
+;	01 = XOFF required to be sent with next incoming character.
+;	00 = XOFF sent, comms off.
+;	Start bit is derived from SYSTAT(0) and data bits 0 through P
+;	are derived from TXBYTE lsb through msb.
+;	Recall that XON=11H, XOFF=13H and ASCII telegraphy has idle=mark(1)
+;	TXBYTE will have been loaded with:	XON  = 00010001 = 11H
+;						XOFF = 00010011 = 13H
+;				Or,   "SEND NOTHING" = 11111111 = FFH
+;
+;   Service timing (NB 6144kHz XTAL gives 325ns clock period and at fastest
+;   rate of 9600 baud one !half! bit time is 52us ie 160 clock cycles:
+;			; 9 ;cycles mean (ave. 3) latency b4 interrupt proc.
+;			;18?;clock cycles for RST6.5 call to vector
+;			;10 ;cycles for JMP instruction from vector
+;.....................................................................
+COMSVC:	PUSH PSW	;12 ;Save environment for registers required:
+	PUSH B		;12 ; (B=Bitcount, C=TXbyte)
+	PUSH D		;12 ; (D=buffered RIM, E=nascent RXdata)
+;			;NO PUSH H - HL NOT USED TIL AFTER DATA BITS (DONDAT)
+;73 cycles to here (mean)
+; 	   Form RIM buffer byte to preserve interrupt masking at SOD writes
+	RIM		; 4
+	ANI 0FH		; 7 ; Keep only interrupt masks.
+	ORI 40H		; 7 ; bit 6 enables SOD writes in SIM instruction
+	MOV D,A		; 4 ;Later, OR in TX bit from C ready for SIM write.
+;95 cycles to here
+;	   Select delay to pad to middle of start bit at cycle 160+COUNTAx40
+	LDA COUNTA	;13 ;
+	CPI 00H		; 7 ;
+	JZ STRTBT	; 7(10 if jumping at 9600 bd)
+	CALL DELAYA	; 80xCOUNTA;
+	CALL DELAYA	; 80xCOUNTA;
+	NOP		; 4 ;Waste 4 cyc
+;125(COUNTA=0) or 126+COUNTAx160(COUNTA>0) cycles to here. 
+;	   Get TX true or false (ie dummy) start bit into A7
+STRTBT:	LDA SYSTAT	;13 ;Get TX demand status  SYSTAT(0) (==start bit)
+	RRC		; 4 ;Rotate bit 0 into bit 7
+	ANI 80H		; 7 ;Keep only new bit 7.
+	ORA D		; 4 ;Combine with interrupt mask buffer
+;
+	SIM		; 4 ;and send on SOD	SENDING!!!!!!
+;
+;Commencing TX start bit. Theor centre of RX start bit is at 160+COUNTAx160
+;cycles. Chose 157(COUNTA=0) / 158+COUNTAx40 cycles to be slightly advanced at
+;9600 baud (by only 1% of baud) to allow risetime delay (prob. not enough)
+;
+;NOW START COUNTING CYCLES TO MIDDLE OF RX, LEADEDGE OF TX FIRST DATA (LS)BITS
+;ie 0 cycles to here.
+	RIM		; 4 ;Read SID bit	RECEIVING!!!!
+;
+	MOV E,A		; 4 ;Put aside in RXBUF reg while we decide whether
+	LDA SYSTAT	;13 ;this is an XON transmit pass- (RX not required).
+	ANI 03H		; 7 ;SYSTAT 1,0 == <XON not XOFF>,<TX REQUIRED>
+	CPI 03H		; 7 ;Is it TX - XON ?
+	JZ NORX		; 7(10 if jumping);
+	MOV A,E		; 4 ;It is RX so look at it
+	ANI 80H		; 7 ;Is it set@? ie space condition?
+	JZ ERSTRT	; 7(10 if error);Else flag false start bit
+	JMP DATA	;10 ;Skip path-equalising delay instructions
+;	   waste time to equal test path above (JZ NORX to DATAIN:) of 35 cyc:
+;			;10 ;JZ NORX
+NORX:	ANI 0FFH	; 7 ;Waste 7 cycles
+	ANI 0FFH	; 7 ;Waste 7 cycles
+	ANI 0FFH	; 7 ;Waste 7 cycles
+	NOP		; 4 ;Waste 4 cycles
+;70 cycles to here.  Now set up byte for transmission in C, bitcounter in B
+;
+DATA:	LDA SYSTAT	;13 ;Get XON/XOFF requirements, remove irrelevant bits
+	ANI 03H		; 7 ;1,0 == <1=XON, 0=XOFF>,<TX REQUIRED>
+	RAR		; 4 ;Get TX REQUIRED flag into CY flag
+	JNC NOTX	; 7(10 if jump);
+	CPI 00H		; 7 ;Check A reg. Only <XON (/XOFF)> remains, in A0
+	JZ TXOFF	; 7(10 if jump); Zero implies XOFF
+	MVI C,XON	; 7 ;Must be XON by elimination. Place in txbuffer
+	JMP BIT0	;10 ;Rejoin path (Longest branch, no padding)
+;
+NOTX:	MVI C,0FFH	; 7 ;Default TX dummy byte of all mark for no TX.
+	ANI 0FFH	; 7 ;Waste 7 cyc (Shortest branch, pad by 11 cycles)
+	NOP		; 4 ;Waste 4 cyc
+	JMP BIT0	;10 ;rejoin path
+;
+TXOFF:	MVI C,XOFF	; 7 ;Place in txbuffer
+	ANI 0FFH	; 7 ;Waste 7 cyc (branch, pad by 7 cycles)
+;132 cycles to here
+;
+BIT0:	CALL DELAYB	;80xCOUNTB;
+	CALL DELAYB	;80xCOUNTB;
+;132 + 160xCOUNTB cycles to here 
+	MOV A,C		; 4 ;Get TXbyte
+	RRC		; 4 ;Get TX bit 0 into A7
+	MOV C,A		; 4 ;and put back rotated version
+	ANI 80H		; 7 ;Keep only A7
+	ORA D		; 4 ;Combine int mask bits
+;
+	SIM		; 4 ;and WRITE TO SOD
+;
+;159 + 160xCOUNTB cycles to here since writing start bit to SOD
+;
+;NOW START COUNTING CYCLES TO MIDDLE OF RX, LEADEDGE OF TX 2ND DATA BITS
+;ie 0 cycles to here.  Start by readin RX first data bit.
+;
+	RIM		; 4 ;READ SID (if not RX result will be ignored)
+;
+	RLC		; 4 ;Get SID bit (A7) into CY flag
+	MVI A,00H	; 7 ;Clean initial RXdata buffer.
+	RAR		; 4 ;Get bit 0 from CY flag into A7
+	MOV E,A		; 4 ;Put back rotated into RXbuffer
+	MVI B,BITS	; 7 ;Get number of data+parity bits in comms.(8?)
+;30 cycles to here
+	ANI 0FFH	; 7 ;Waste 7 cyc equalises first/later passes NXTBIT:
+;37 cyc to here
+;
+;Repeat the following process until all RX/TX data bits received/sent
+NXTBIT:	DCR B		; 4 ;Count down data bits
+;
+	JZ DONDAT	; 7(10 if jump) Exit loop if data bits all done
+;48 cyc to here
+;@@@@ INSTALL FIXED delay printer service routine here of 133-48 = 85 cyc ?
+;@@@@ Meanwhile - Temporary 92 cyc waster routine:
+	XTHL		;16 ;waste 32 cyc
+	XTHL		;16 ;
+	XTHL		;16 ;waste 32 cyc
+	XTHL		;16 ;
+	ANI 0FFH	; 7 ;waste 7 cyc
+	ANI 0FFH	; 7 ;waste 7 cyc
+	ANI 0FFH	; 7 ;waste 7 cyc
+;
+;
+	CALL DELAYB	;80xCOUNTB;
+	CALL DELAYB	;80xCOUNTB;
+;133 + 160xCOUNTB cycles to here 
+	MOV A,C		; 4 ;Get TXbyte
+	RRC		; 4 ;Get next TX bit from C0 into A7
+	MOV C,A		; 4 ;and put back rotated version
+	ANI 80H		; 7 ;Keep only A7
+	ORA D		; 4 ;Combine int mask bits
+;
+	SIM		; 4 ;and WRITE TO SOD
+;
+;160 + 160xCOUNTB cycles to here since writing start or N-1th data bit to SOD
+;
+;NOW START COUNTING CYCLES TO MIDDLE OF RX, LEADEDGE OF TX Nth DATA BITS
+;ie 0 cycles to here.
+;
+	RIM		; 4 ;READ SID (inactive RX result will be ignored)
+;
+	RLC		; 4 ;Get SID bit (A7) into CY flag
+	MVI A,00H	; 7 ;Clean initial RXdata buffer.
+	RAR		; 4 ;Get bit 0 from CY flag into A7
+	MOV E,A		; 4 ;Put back rotated into RXbuffer
+	NOP		; 4 ;Pad for 37 cyc at end of the following jump
+	JMP NXTBIT	;10 ;loop for more data bits if any.
+;
+;
+;Now that data+parity bits received, registers B,C are free for new use.
+;Check pass type and post RXbyte and newdata flag for input ring buffer
+;
+;51 cycles to here
+DONDAT:	PUSH H		;12 ;Now that tight timing over, make HL available
+	LDA SYSTAT	;13 ;Get pass type bits 0,1
+	ANI 03H		; 7 ;only.
+	CPI 03H		; 7 ;Both bits means XON was sent, ie not RX pass
+;note that prec stmt relies on host not sending when XON is judged necessary
+	JNZ PUTCHR	; 7(10 if jump);Skip path equaln if not RX pass
+;
+	XTHL		;16 ;Waste 32 cyc	!WASTE 127 CYC TO KEEP PACE
+	XTHL		;16 ;			!WITH FIRST PART OF PUTCHR
+	XTHL		;16 ;Waste 32 cyc
+	XTHL		;16 ;
+	PUSH H		;12 ;Waste 22 cyc
+	POP H		;10 ;
+	PUSH H		;12 ;Waste 22 cyc
+	POP H		;10 ;
+	ANI 0FFH	; 7 ;Waste 7 cyc
+	NOP		; 4 ;Waste 4 cyc
+	NOP		; 4 ;Waste 4 cyc
+	NOP		; 4 ;Waste 4 cyc
+;
+;224 cyc to here
+STOPB1:	ANI 0FFH	; 7 ;Waste 7 cyc 	!WASTE 18 CYCLES TO KEEP PACE
+	ANI 0FFH	; 7 ;Waste 7 cyc	!WITH JUMPS FROM PUTCHR
+	NOP		; 4 ;Waste 4 cyc
+;242 cyc to here
+STOPB2:	LXI H,SYSTAT	;10 ;Jump to here if RX pass and XOFF not reqd
+	MOV A,M		; 7 ;
+	ANI 0FEH	; 7 ;reset <TX required> bit 0.
+	MOV M,A		; 7 ;Replace.
+	JMP STOPB3:	;10 ;and skip to process stopbit
+;
+;
+;Administer ring buffer filling and posting of XOFF requirement.
+;	XON must be both posted and initiated from outside of this routine.
+;NB:RX ring buffer handling is secure against SIO interrupt having occurred
+; during ring buffer operations PROVIDED THAT ring write and ring writing
+; address counter updating both take place here before interrupt is reenabled.
+;
+PUTCHR:	LHLD RNGNEW	;16 ;Get pointer to buffer address for incoming char.
+	MOV M,E		; 7 ;Put char in buffer
+	INX H		; 6 ;Update buffered pointer
+	MOV A,H		; 4 ;Check Rollover: Get MS byte in A reg.
+	ANI 21H		; 7 ;Mask off all xcept bits 5 (2000) and 0 (01 FF)
+	MOV H,A		; 4 ;replace H (force 2200 to 2000 for 21FF rollover)
+	SHLD RNGNEW	;16 ;replace RNGNEW with updated value	
+	LHLD NCHRS	;16 ;Get character count
+	INX H		; 6 ;increment it.
+	SHLD NCHRS	;16 ;Update NCHRS
+	MOV A,H		; 4 ;Look at hibyte.
+	ANI 02H		; 7 ;If bit 1 set, 512 chrs reached
+	JNZ EROFLO	; 7(10 if error jump);Flag ring overflow if 512.
+	MOV A,H		; 4 ;Look again at hibyte
+	RRC		; 4 ;Get bit 1 into CY flag
+	JNC STOPB1	; 7(10);Skip if not even 256 chrs
+	MOV A,L		; 4 ;Now check lobyte
+	ANI 80H		; 7 ;If bit 7 set, buffer is within 128 of full 511.
+	JZ STOPB2	; 7(10);Skip if not.
+	LDA SYSTAT	;13 ;Get system state byte and
+	ANI 0FDH	; 7 ;reset bit 1 (=> XOFF)
+	ORI 01H		; 7 ;set bit 0 (=> <TX request>)
+	STA SYSTAT	;13 ;Replace.
+	NOP		; 4 ;Waste 4 cyc to keep pace with STOPB2
+;
+;283 cyc to here
+STOPB3:	LDA COUNTA	;13 ;Get count series 1,3,5 ... for baud rate.
+	CPI 00H		; 7 ;Is it fastest?
+	JZ STOPBT	; 7(10 if jump);if so
+;
+	CALL DELAYA	;80xCOUNTA;  Delay for 320xCOUNTA
+	CALL DELAYA	;80xCOUNTA;
+	CALL DELAYA	;80xCOUNTA;
+	CALL DELAYA	;80xCOUNTA;
+	NOP		; 4 ;Waste 4 cyc to be 2 cyc late on slower comms path
+;313 to here (fastest 9600 rate) ELSE 315 to here (slower baud rates)
+STOPBT:	MOV A,D		; 4 ;Get RIM buffer with 7,6 = <0>,<1>.
+;
+	SIM		; 4 ;Write stop bit (reset SOD)
+;
+;At RX centre, TX leadedge of stopbit.
+;Now at 321, or 322+320xCOUNTA cycles since last RIM/SIM
+;
+	RIM		; 4 ;Read SID
+;
+	RLC		; 4 ;into CY flag
+	JC ERXSTP	; 7(10 if err jump);Flag bad stop overrun
+	JMP EXIT	;10 ;Else no errors, go restore environment
+;
+ERSTRT:	MVI A,08H	; 7 ;
+	JMP COMERR	;10 ;
+EROFLO:	MVI A,04H	; 7 ;
+	JMP COMERR	;10 ;
+ERXSTP:	MVI A,02H	; 7 ;
+;
+COMERR:	CALL ERROR	;???;		
+;
+;
+EXIT:	POP H		;10 ;Restore environment in reverse order
+	POP D		;10 ;
+	POP B		;10 ;
+	POP PSW		;10 ;
+	EI		; 4 ;Finally re-enable interrupts
+	RET		;10 ;before restoring PC
+;
+;
+;
+;-------------- FIFO INPUT BUFFER MANAGEMENT ----------------------
+;
+;
+;
+;	   GETCHR procedure acquires char from buffer and administers XON TX.
+GETCHR:	LHLD NCHRS	;16 ;Get character count
+	MOV A,H		; 4 ;Look at hibyte.
+	CPI 00H		; 7 ;If zero must be less than 256 chars
+	JNZ MANY	; 7(10 if jump);Skip if NCHRS > 256
+	MOV A,L		; 4 ;Now check lobyte
+	CPI 00H		; 7 ;If it also is zero we
+	RZ		;   ;return emptyhanded.
+;
+	ANI 0C0H	; 7 ;If bits 6 or 7 set, more than 63 chars remain
+	JNZ MANY	; 7(10);Skip if NCHRS > 63
+	LDA SYSTAT	;13 ;Else get system state byte and check if XON
+	ANI 02H		; 7 ;(bit 1=<1>) has already been flagged or issued
+	JNZ MANY	; 7(10);Skip if it has.
+	ORI 03H		; 7 ;else set bits 1,0 <XON>,<TXrequired>
+	STA SYSTAT	;13 ;update SYSTAT
+	CALL COMSVC	;!!!;and force transmission of XON
+;
+MANY:	DCX H		; 6 ;decrement non-zero NCHRS value still in HL
+	SHLD NCHRS	;16 ;Update NCHRS in memory
+	LHLD RNGOLD	;16 ;Get pointer to buffer address for oldest char.
+	MOV E,M		; 7 ;GET CHAR in E register buffer
+	INX H		; 6 ;Update buffered pointer to next oldest
+	MOV A,H		; 4 ;Check Rollover: Get MS byte in A reg.
+	ANI 21H		; 7 ;Mask off all xcept bits 5 (2000) and 0 (01 FF)
+	MOV H,A		; 4 ;replace H (force 2200 to 2000 for 21FF rollover)
+	SHLD RNGOLD	;16 ;replace RNGOLD with updated value	
+	RET		;
+;
+;Note:	If buffer size was ever increased, the mask would change to account
+;	for the (odd) number of 512 byte modules ( 21 -> 23(1536), 27(2560) ).
+;	Even or peculiar sized buffers would require slower arithmetic ops.
+;
+;----------------------------------------------------------------------------
+;
+;INTERP - INTERP receives a character from the input ring buffer and decides
+;	what to do with it according to whether:
+;		- an <ESC> sequence is in progress OR
+;		- it is not, and this is an <ESC>  OR
+;		- we are in graphics mode OR
+;		- none of the above and it is a printing character OR
+;		- else it must be a carriage/platen control OR
+;		- anything else is garbage and could be flagged or ignored.
+;	The details of action are dealt with in other routines called:
+;		- ESCAPE: handling escape sequences both legal and garbage
+;		- GRAFIX: handling graphics mode commands
+;		- PRINTG: handling printing characters
+;		- CONTRL: handling control characters and garbage.
+;	
+;	FLAGS need to be kept for:
+;		- Escape sequence byte counting	ESCFLG
+;		- Abort (else display) on illegal ctrl or seq,	ABOFLG
+;		- Bold attribute (n strikes)
+;		- Shadow attribute
+;		- Underscore attribute
+;		- Graphics (1/120 or 1/60)
+;		- WPS mode on/off
+;		- AutoLF on/off
+;		- Autowrap on/off
+;		- RMcontrol on/off
+;		- NOPRINT on/off
+;		- Autobidirectional on/off
+;
+;	- these flags will be initialised either to "normal" state
+;	  or where appropriate (eg autowrap) to DIP switch or electronic
+;	  front panel settings.
+;
+;	CHARACTER INTERPRETATION ROUTINE INTERP
+;
+;	Character received in Areg.
+;
+;       IF char is <ESC> OR IF ESCFLG flag byte >0, execute ESCAPE routine
+;	IF byte is in range (21H to 7EH) execute PRINTG
+;	Else execute CONTRL routine.
+;
+;
+;
+INTERP:	MOV E,A		;put char aside
+	LXI H,ESCFLG	;Get escflg
+	MOV A,M		;into A
+	JNZ ESCAPE	;Jump if still completing an escape sequence
+	MOV A,E		;else get chr back
+	CPI ESC	;Is it ESC? ( 33(8) = 1BH )
+	JZ ESCAPE	;Start escape sequence if it is ESC.
+	CPI '!'		;Compare with <!> the lowest printing char [A - "!]
+	JP PRINTG	;Zero or positive must be printing (7F (DEL) prints)
+;	CONTROL SEQUENCE PROCESSING FOLLOWS
+CONTRL: CPI SP		;compare with SPace (most frequent by far)
+	JZ CONSP	;is SP
+	CPI BEL		;Test whether otherwise control or garbage
+	JM GARBGE	;less than BEL not valid control. @@@May go to ESCBAD?
+	JZ CONBEL	;must be BEL
+	CPI HT		;compare with HT
+	JM CONBS	;must be BS
+	JZ CONHT	;must be HT
+	CPI VT		;compare with VT
+	JM CONLF	;must be LF
+	JZ CONVT	;must be VT
+	CPI CR		;
+	JM CONFF	;must be FF
+	JZ CONCR	;must be CR, (else must be garbage or US)
+	CPI US		;
+	JZ CONUS	;is US(progmode carr. command, another byte coming)
+	JMP GARBGE	;@@@Possibly to ESCBAD
+;	The following control character processing routines return to kernel
+;	on completion.
+PRINTG:	NOP
+CONSP:	NOP
+CONBEL:	NOP		;ring bell 250 ms and return
+CONBS:	NOP
+CONHT:	NOP
+CONLF:	NOP
+CONVT:	NOP		;Use TABBUF
+CONFF:	NOP		;Use FORMSZ
+CONCR:	NOP		;Check AUTOLF
+;
+CONUS:	NOP		;Get one more char if and when available, 
+GARBGE:	NOP		;(may use ESCBAD or reciprocally,...)
+;
+;
+;---------------------------------------------------------------------------
+;	ESCAPE SEQUENCE PROCESSING
+;
+;ESCAPE:Incr ESCFLG
+;	IF ESCFLG .NE. 1
+;		IF ESCFLG = 2
+;			EXECUTE ESCVEC	;Identify sequence, ARGCNT, ESCSEQ v
+;		ELSE	
+;			store argument and decrement argument count
+;		ENDIF
+;		IF ARGCNT .LT. 1,  vector to the now fully received sequence:
+;			LHLD ESCSEQ	;get address of seq. action routine
+;			PCHL		;and jump to it.
+;		ENDIF
+;	ELSE EXIT	;Escape sequence only starting (ESCFLG = 1)
+;	ENDIF
+;	---------------
+ESCAPE:	NOP
+;
+;----------------------------------------------------------------------------
+;	ESCAPE SEQUENCE IDENTIFYING AND SETUP ROUTINE
+;
+;<Legal Vectored Routines>:	Set required ARGCNT in range 0 to 4
+;			If ARGCNT .GT. 0 return to ESCAPE routine
+;				ELSE EXECUTE THE 
+;
+;<Illegal Vectored Routines>:	If ABOFLG = 1, flag fatal data error
+;				Else produce mockup overprint of bad
+;				<ESC>. Suggest that bad <ESC> and other
+;				control region illegal chars) could be shown
+;				by slash </> superimposed over @ thru _ , eg.
+;				<ESC> (=ctrl [ ) shown by [ with / thru it.
+;
+;Variables: ESCSEQ, ARGCNT
+;
+;Called from ESCAPE with second char of sequence in A reg):
+;
+ESCVEC: RLC		;Make byte point to two-byte address
+	ANI 0FEH	;Clear off bit A0 in case it came up from A7
+	MVI D,00H	;Put
+	MOV E,A		;in DE
+	LXI H,VECBOT	;Put table base address in HL
+	DAD D		;Add DE (offset) to VECBOT in HL.
+	MOV E,M		;Lobyte of vector
+	INX H		;Hibyte
+	MOV D,M		;of vector
+	MOV A,D		;Get vector highbyte in A (contains keys also:)
+	RLC		;Get bits A5, A4 (No of chars after ESC and first)
+	RLC		;down into bits A1 and A0.
+	RLC		;
+	RLC		;
+	ANI 03H		;Clean off bits leaving <number of chrs to come>.
+	LXI H,ARGCNT	;Point to argcnt variable.
+	MOV M,A		;Store number of chars to go in it
+	MOV A,D		;Get key/vectorhibyte back in A
+	ANI 0FH		;Clean off keys
+	MOV D,A		;and put back in D
+	XCHG		;Swap DE into HL (HL now has pure routine address)
+	SHLD ESCSEQ	;Store sequence handler address in ESCSEQ byte pair.
+	XCHG		;Put HL aside in DE
+;;;;;;	LXI H,ARGCNT	;Check No of chars to go HL STILL POINTS TO ARGCNT;;;
+	MOV A,M		;look at it
+	RET		;back to ESCAPE.
+;
+; - Explanation of table: Each entry is the address in range (0000-0FFF) of
+;   the corresponding sequence actioning routine WITH a count of the number
+;   of sequence chars following the <ESC> multiplied by 1000H added into the
+;   address as evident below. The top 4 bits are masked to get true address.
+VECBOT:	DW	ESCBAD	;00H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBS	;08H
+	DW	ESCHT+1000H
+	DW	ESCLF
+	DW	ESCVT+1000H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCSO
+	DW	ESCSI
+	DW	ESCBAD	;10H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD	;18H
+	DW	ESCBAD
+	DW	ESCSUB+1000H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCRS+1000H
+	DW	ESCUS+1000H
+	DW	ESCBAD	;20H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESC23H	;#
+	DW	ESC24H	;$
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESC27H+3000H	;(
+	DW	ESC28H+3000H	;)
+	DW	ESCBAD
+	DW	ESC2AH	;+
+	DW	ESC2BH	;,
+	DW	ESC2CH	;-
+	DW	ESC2DH	;.
+	DW	ESCBAD
+	DW	ESC0	;30H
+	DW	ESC1
+	DW	ESC2
+	DW	ESC3
+	DW	ESC4
+	DW	ESC5
+	DW	ESC6
+	DW	ESCBAD
+	DW	ESC8	;38H
+	DW	ESC9
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESC3CH	;<
+	DW	ESCBAD
+	DW	ESC3EH	;>
+	DW	ESCBAD
+	DW	ESC40H+1000H	;@
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCC+2000H
+	DW	ESCD
+	DW	ESCE+2000H
+	DW	ESCF+2000H
+	DW	ESCG
+	DW	ESCH+3000H	;48H
+	DW	ESCI
+	DW	ESCJ
+	DW	ESCK+1000H
+	DW	ESCL+2000H
+	DW	ESCM
+	DW	ESCN
+	DW	ESCO
+	DW	ESCP+2000H	;50H
+	DW	ESCQ
+	DW	ESCR
+	DW	ESCS
+	DW	ESCT
+	DW	ESCU
+	DW	ESCV+3000H
+	DW	ESCW
+	DW	ESCX	;58H
+	DW	ESCY
+	DW	ESCZ
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD	;60H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD	;68H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD	;70H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD	;78H
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD
+	DW	ESCBAD	;7FH
+;-----------------END OF ESC SEQ JUMP ADDRESS TABLE----------
+;
+;ESCBAD:	IF ABOFLG = 1		;BAD (UNDEFINED) ESCAPE SEQUENCE
+;			SET DATERR FLAG
+;		ELSE	CLEAR ESCFLG
+;			PRINT </>
+;			RETURN CARRIAGE ONE CHARACTER
+;			CALL PRINTG	;Display Char with / overprint.
+;		ENDIF
+;			EXIT
+;-------------------
+;ESCBS:		MOVE CARRIAGE BACK 6/120 (10 pitch) OR 5/120 (12 pitch)
+;		EXIT
+;-------------------
+;ESCHT:		SET ARGCNT = 1	;theres one (n) to go.
+;
+;
+;
+;
+;@
+ESCBS:	NOP
+ESCHT:	NOP
+ESCLF:	NOP
+ESCVT:	NOP
+ESCSO:	NOP
+ESCSI:	NOP
+ESCSUB:	NOP
+ESCRS:	NOP
+ESCUS:	NOP
+ESC23H:	NOP
+ESC24H:	NOP
+ESC27H:	NOP
+ESC28H:	NOP
+ESC2AH:	NOP
+ESC2BH:	NOP	;did i miss one around here????????+/-12
+ESC2CH:	NOP
+ESC2DH:	NOP
+ESC0:	NOP
+ESC1:	NOP
+ESC2:	NOP
+ESC3:	NOP
+ESC4:	NOP
+ESC5:	NOP
+ESC6:	NOP
+ESC8:	NOP
+ESC9:	NOP
+ESC3CH:	NOP
+ESC3EH:	NOP
+ESC40H:	NOP
+ESCC:	NOP
+ESCD:	NOP
+ESCE:	NOP
+ESCF:	NOP
+ESCG:	NOP
+ESCH:	NOP
+ESCI:	NOP
+ESCJ:	NOP
+ESCK:	NOP
+ESCL:	NOP
+ESCM:	NOP
+ESCN:	NOP
+ESCO:	NOP
+ESCP:	NOP
+ESCQ:	NOP
+ESCR:	NOP
+ESCS:	NOP
+ESCT:	NOP
+ESCU:	NOP
+ESCV:	NOP
+ESCW:	NOP
+ESCX:	NOP
+ESCY:	NOP
+ESCZ:	NOP
+ESCBAD:	NOP
+;@
+;
+;*************************************************************
+; DIAGNOSTIC ROUTINES 
+;
+ERR1:	NOP	;@@@
+;
+;
+; SUBROUTINE CHKROM - <ADD>'S all bytes from (ROMTOP) down
+; to (0000H) including the checksum in 2's complement stored
+; in the vector area at ROMSUM. If the total sum is non-zero,
+; CHKROM sets bit 7 in port 40 (ERRORS) and sets the system
+; state SYSTAT bit 7 (Error).
+;
+; Requires constant ROMTOP to be defined.
+CHKROM:   LXI   H,ROMTOP        ;Point to top ROM byte.
+          MVI   B,00H           ;and clear B reg.
+MOROM:    MOV   A,B             ;Recover subtotal.
+          ADD   M               ;ADD current byte and
+          MOV   B,A             ;put subtotal aside.
+          DCX   H               ;Point to next byte.
+          MOV   A,H             ;Check if HL
+          ORA   L               ;down to 0000H yet
+          JNZ   MOROM           ;continue loop if not.
+          MOV   A,B             ;Else restore subtotal
+          ADD   M               ;and add bottom byte
+          RZ                    ;Exit if Zero total(ROM OK)
+;
+          MVI   A,80H           ;set bit 7 in ERRORS port
+          CALL  ERROR           ;and set SYSTAT bit 7.
+          RET                   ;
+;
+;
+;
+;
+;
+; SUBROUTINE CHKRWM - Checks integrity of read/write
+; memory (IE. "RAM").   Complements twice all bytes from
+; (MEMST) up to (MEMST + MEMSIZ) checking for bit
+; failures.
+; If a failure is detected, CHKRWM sets bit 6 in port 40
+; ERRORS: BADRWM; and sets the system state byte SYSTAT
+; bit 7 (Error).
+;
+CHKRWM:   LXI   H,MEMST         ;Get RAM bottom address
+          LXI   B,MEMSIZ        ;and size
+NXTRWM:   MOV   A,M             ;Get byte and
+          MOV   D,A             ;set aside in D.
+          CMA                   ;Complement and
+          MOV   M,A             ;store.
+          CMP   M               ;Did complement store?
+          JNZ   BADRWM          ;Faulty if not identical
+          MOV   M,D             ;Rewrite original data.
+          MOV   A,D             ;and also put it in A register.
+          CMP   M               ;Does it read correctly?
+          JNZ   BADRWM          ;Faulty if not identical
+          INX   H               ;else point to next byte
+          DCX   B               ;decr. byte count
+          MOV   A,B             ;Check if BC (byte count)
+          ORA   C               ;down to 0000H yet
+          RZ                    ;Return if so,
+          JMP   NXTRWM          ;Else loop.
+;
+BADRWM:   MOV   M,D             ;Attempt to restore data.
+          MVI   A,40H           ;set bit 6 in ERRORS port
+          CALL  ERROR           ;and set SYSTAT bit 7 (error)
+          RET                   ;
+;
+;
+;
+;
+;
+;
+; SUBROUTINE WATCH1  -  Turns on watchdog bit 0 in ERRORS
+; port. Called from ????? 
+;
+WATCH1:   LXI   H,ERRBUF        ;ERRORS buffer
+          MOV   A,M             ;Read,
+          ORI   01H             ;Set bit 0 on.
+          MOV   M,A             ;and rewrite buffer
+          OUT   ERRORS          ;and port.
+          RET                   ;
+;
+;
+;
+; SUBROUTINE WATCH0  -  Turns off watchdog bit 0 in ERRORS
+; port. Called from ????????????
+;
+WATCH0:   LXI   H,ERRBUF        ;ERRORS buffer
+          MOV   A,M             ;read,
+          ANI   0FEH            ;mask off bit 0
+          MOV   M,A             ;and rewrite buffer
+          OUT   ERRORS		;and port.
+          RET                   ;
+;
+;
+;
+;
+; SUBROUTINE ERROR - Receives error identification in
+; register A, indicates all notified errors in ERRORS
+; port 40 and sets the system state SYSTAT bit (7).
+;
+ERROR:	PUSH H			;Free HL for use.
+	LXI H,ERRBUF		;ERROR buffer
+	ORA M			;Add bit(s) from reg. A
+	MOV M,A			;rewrite buffer and
+	OUT ERRORS		;error display port.
+	LXI H,SYSTAT		;Get system state
+	MOV A,M			;
+	ORI 80H			;and set bit 7 (Error).
+	MOV M,A			;
+	POP H			;Restore HL.
+	RET			;
+;
+; SUBROUTINE TRACE - Debug routine similar to subroutine ERROR.
+; Receives waypoint identification bit in register A, indicates
+; waypoint in DEBUGS port 41 for 25 ms each and clears before
+; continuing.
+TRACE:    PUSH  H               ;release HL for use.
+          LXI   H,BUGBUF        ;buffer to DEBUGS port
+          ORA   M               ;Add with waypoint bit in reg. A
+          OUT   DEBUGS		;Load port only for tmp. display.
+          MVI   A,09H           ;calls for 2.5 x 10 ms = 25 ms
+TRACE2:   CALL  TDLAY2          ;of delay routine 2.
+          DCR   A               ;
+          JNZ   TRACE2          ;
+          MOV   A,M             ;Get original buffered contents.
+          OUT   DEBUGS		;and reload port (clear waypoint)
+          POP   H               ;Restore HL.
+          RET                   ;
+;
+;
+;
+;TIME DELAY SUBROUTINE(S)
+;
+;
+TDLAY1:	PUSH D
+	MVI     D,0FFH     ; delay loop TDLAY1 is 298ms @ 6144kHz XTAL
+        JMP     WAIT
+;
+TDLAY2:	PUSH D
+	MVI     D,01H     ; delay loop  TDLAY2 is 1.17ms @ 6144kHz XTAL
+WAIT:	MVI     E,00H
+        DCR     E
+        JNZ     WAIT+2
+        DCR     D
+        JNZ    	WAIT+2
+	POP	D
+        RET
+;
+;
+;   DELAYA - To delay by (80 x COUNTA) clk cycs (80cyc=26.04us,6144XTAL)
+; 		1 => 80, 2 => 160, ...  FF=> 15x80, 00 => 16x80
+;			;18;Call takes 18 cycles
+DELAYA:	LDA COUNTA	;13;
+	STA COUNTA	;13;Waste 13cyc		!WASTE 33 CYCLES
+	STA COUNTA	;13;Waste 13cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+DELA:	DCR A		; 4; - (80 cyc loop while not RZ else last time 86cyc)
+	RZ		;12/6; - Returned 80 cyc total if RZ first time.
+	XTHL		;16; Waste 32		!WASTE 60 CYCLES
+	XTHL		;16;  cycles		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	JMP DELA	;10; Loop
+;
+;   DELAYB - To delay by (80 x COUNTB) clk cycs (80cyc=26.04us,6144XTAL)
+; 		1 => 80, 2 => 160, ...  FF=> 15x80, 00 => 16x80
+;			;18;Call takes 18 cycles
+DELAYB:	LDA COUNTB	;13;
+	STA COUNTB	;13;Waste 13cyc		!WASTE 33 CYCLES
+	STA COUNTB	;13;Waste 13cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+DELB:	DCR A		; 4; - (80 cyc loop while not RZ else last time 86cyc)
+	RZ		;12/6; - Returned 80 cyc total if RZ first time.
+	XTHL		;16; Waste 32		!WASTE 60 CYCLES
+	XTHL		;16;  cycles		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	ANI 0FFH	; 7;Waste 7 cyc		!
+	JMP DELB	;10; Loop
+;
+;
+;
+;**************************************************************
+;
+;------------- LOOKUP TABLES ----------------------------------
+;
+	ORG	ROMTOP-30H
+;
+TIMTBL:	DB	TA300,TB300	;Baud timing counts table     12B
+	DB	TA600,TB600	;
+	DB	TA1K2,TB1K2	;
+	DB	TA2K4,TB2K4	;
+	DB	TA4K8,TB4K8	;
+	DB	TA9K6,TB9K6	;9600 baud timing counts
+;
+FFTBL:	DW	FFLEN0		;Form length table.           16B
+	DW	FFLEN1		;
+	DW	FFLEN2		;
+	DW	FFLEN3		;
+	DW	FFLEN4		;
+	DW	FFLEN5		;
+	DW	FFLEN6		;
+	DW	FFLEN7		;
+;
+PCHTBL:	DB	PCH0,PCH1,PCH2,PCH3	;Character pitch table 4B
+;
+SPCTBL:	DB	SPC0,SPC1,SPC2,SPC3	;Line spacing table    4B
+;
+        END
+                                                                                                                      

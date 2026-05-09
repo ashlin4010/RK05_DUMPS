@@ -1,0 +1,701 @@
+C	REVERB - A Program to Evaluate Reverberation Time of a Room
+C		based on total areas of fabrics and room volume.
+C	-------- <C> SANDERS JOHNSON SMITH LTD, 1987 --------------
+C
+C
+C
+C------------------------------------------------------------------
+C	DEVELOPMENT HISTORY
+C	1. Originated 15-JUL-87 TO 31-AUG-87 SAG FOR C/N 8653 ET SEQ.
+C
+C	2. Fabric/properties printer listing option added 03-NOV-87
+C
+C
+C
+C   NOTE: (a) variable NCASED not utilised (remembers size of input file)
+C
+C	  (b) Extend to FITZROY RT60 when eigentone eval'n added.
+C		(That will need identification of surfaces E,S,W,N,T,B
+C		 in tabulating fabric areas, I suggest that this be
+C		 done with arbitrary azimuth East=podium end as in
+C		 ecclesiastical nomenclature.) (ELSE - L,R,F,R,T,B
+C		 Left, Right, Front, Rear, Top, Bottom would avoid
+C		 clashes with geographical azimuth.)??
+C
+C	  (c) ABSORPTIVITY DATA OBTAINED FROM:
+C	- Don and Carolyn Davis: Sound System Engineering (SAMS,1981)
+C	- ITT Hbk: Reference Data For Radio Engineers (SAMS,1973)
+C	- H F Olson: Elements of Acoustical Engineering (v Nostrand 1940)
+C	- NZ Forest Products literature (PINEX products)
+C
+C	Further references for absorptivity figures could be:
+C
+C	- Palin and Humphries: Acoustics and noise in buildings
+C	- National Physical Laboratories: Sound Absorbing Materials (HMSO?)
+C	- Further mfr's data eg AHI figlass?
+C------------------------------------------------------------------
+C
+	BYTE BYTDAT(9),FILNAM(16),IDJOB(80), IDCASE(20,80)
+	LOGICAL FIRST, YES
+	DIMENSION AREA(20,40), HEIGHT(20), WIDTH(20)
+	DIMENSION VOLUME(20), ABSORP(6,40), TABSOR(20,6), RVBTIM(20,6)
+	DIMENSION ABSOR1(6,10), ABSOR2(6,10), ABSOR3(6,10), ABSOR4(6,10)
+	DIMENSION AREATL(20)
+	REAL LENGTH(20)
+C
+	DOUBLE PRECISION NAMFAB(5,40)
+	DOUBLE PRECISION NAMFA1(5,10),NAMFA2(5,10)
+	DOUBLE PRECISION NAMFA3(5,10),NAMFA4(5,10)
+	EQUIVALENCE (NAMFAB(1), NAMFA1(1))	!ARTIFICE SUBDIVIDING NAMFAB
+	EQUIVALENCE (NAMFAB(51), NAMFA2(1))	!TO GET DATA STATEMENTS
+	EQUIVALENCE (NAMFAB(101), NAMFA3(1))	!SMALL ENOUGH TO BE
+	EQUIVALENCE (NAMFAB(151), NAMFA4(1))	!ACCEPTED BY COMPILER.
+	EQUIVALENCE (ABSORP(1), ABSOR1(1))	!DITTO DIVIDING ABSORP
+	EQUIVALENCE (ABSORP(61), ABSOR2(1))	!DITTO DIVIDING ABSORP
+	EQUIVALENCE (ABSORP(121), ABSOR3(1))	!DITTO DIVIDING ABSORP
+	EQUIVALENCE (ABSORP(181), ABSOR4(1))	!DITTO DIVIDING ABSORP
+	COMMON /BLK1/NAMFAB,AREA,AREATL,ABSORP,TABSOR,RVBTIM,VOLUME
+C
+C	***   NOTE THAT ABSORPTIVITY DATA ABSORP() ARE IN SABIN-EQUATION
+C	***   DERIVED TERMS, AS CUSTOMARILY PUBLISHED. HENCE TRUE ABSORP.
+C	***   (ABSOLUTE UNITS) ARE TO BE OBTAINED BY EXPONENTIATION AS
+C	***   FOLLOWS: ABSTRUE = 1 - EXP( -ABSSABIN). HENCE OPEN WINDOW
+C	***   HAS ABSTRUE = 1.00 BUT ABSSABIN = INFINITY (CHOOSE 10.0):
+C	***    ABSSABIN = 10.0   GIVES  ABSTRUE = 0.999955
+C	***    ABSSABIN = 1.0    GIVES  ABSTRUE = 0.6321
+C	***    ABSSABIN = 0.1    GIVES  ABSTRUE = 0.0952
+C	***    ABSSABIN = 0.01   GIVES  ABSTRUE = 0.0009950    THOUGH
+C	***   ABSORPTIVITIES ARE STORED IN SABIN-DERIVED UNITS FOR EASE
+C	***   OF MAINTAINING THE ABSORPTIVITY DATABASE STATEMENTS, THEY
+C	***   ARE CONVERTED TO ABSOLUTE UNITS BEFORE CALCULATION OF RT60
+C	***   REVERB TIMES USING NORRIS-EYRING (RATHER THAN SABINE'S)
+C	***   REVERBERATION EQUATION.
+C	***     - (REF. CH 4, SND SYS ENGRG, D+C DAVIS, SAMS 1975/81) -
+C
+C	***   NOTE THAT FABRICS 35 TO 40 ARE PER UNIT (UNIT=PERSON) IN
+C	***   !METRIC SABINS!. NORMALLY A SABIN IS ONE SQUARE FOOT OF
+C	***   PERFECTLY ABSORPTIVE MATERIAL. WHEN USING THESE 'FABRICS',
+C	***   ENTER NUMBER OF PEOPLE INSTEAD OF SQM AREA. YOU WILL FIND
+C	***   THAT THESE DATA ARE 10.79 TIMES SMALLER THAN THE SABIN
+C	***   (IMPERIAL) FIGURES QUOTED IN BOOKS.
+C
+	DATA NAMFA1/
+	1'Open Win','dow (Bla','ck Hole)','        ','        ',!Theor.
+	2'Heavy 60','0gsm Vel','our Drap','e Half  ','Area    ',!Davis
+	3'Med. 320','gsm Velo','ur Drape',' Half Ar','ea      ',!Davis
+	4'Heavy 60','0gsm Vel','our Flat',' 100mm ','-wall    ',!ITT
+	5'Heavy 60','0gsm Vel','our Flat',' on Wall','        ',!ITT
+	6'Light 32','0gsm Vel','our Flat',' on Wall','        ',!Davis
+	7'Heavy Pi','le Carpe','t on Hea','vy Under','lay     ',!Davis
+	8'Heavy Pi','le Carpe','t on Con','c. Floor','        ',!ITT(NBRS)
+	9'Heavy La','tex Carp','et on He','avy Unde','rlay    ',!Davis
+	$'Heavy La','tex Carp','et on Co','nc. Floo','r       '/!Davis  /10
+	DATA ABSOR1/ !FABRIC DATA FOR 8ve BANDS AT 125,250,500,1k,2k,4kHz
+	$10.0,10.0,10.0,10.0,10.0,10.0,	!01 (SABIN UNITS AS NOTED!)
+	$.14,.35,.55,.72,.70,.65,	!02
+	$.07,.31,.49,.75,.70,.60,	!03
+	$.06,.27,.44,.50,.40,.35,	!04
+	$.05,.12,.35,.45,.38,.36,	!05
+	$.03,.04,.11,.17,.24,.35,	!06
+	$.08,.24,.57,.69,.71,.73,	!07
+	$.02,.06,.14,.37,.60,.65,	!08
+	$.08,.27,.39,.34,.48,.63,	!09
+	$.02,.06,.14,.37,.60,.65/	!10
+C
+	DATA NAMFA2/
+	1'Light Pi','le Carpe','t on Lig','ht 4mm F','elt     ',!ITT
+	2'Light Pi','le Carpe','t on Con','c. Floor','        ',!ITT(NBRS)
+	3'Axminste','r Rug   ','        ','        ','        ',!ITT(Wte)
+	4'Timber F','loor (ba','re)     ','        ','        ',!Davis
+	5'Parquet ','well set',' on conc','rete bas','e       ',!Davis
+	6'Linoleum',', vinyl,','cork til','es on co','ncr.    ',!Davis
+	7'Poured c','oncrete ','or paint','ed brick','        ',!VOK
+	8'Floated,','Painted-','poured c','onc; or ','tile    ',!Davis
+	9'Concrete','Block po','rous unp','ainted  ','        ',!Davis
+	$'Concrete','Block pa','inted   ','        ','        '/!       /20
+	DATA ABSOR2/ !FABRIC DATA FOR 8ve BANDS AT 125,250,500,1k,2k,4kHz
+	$.11,.14,.37,.43,.27,.25,	!11
+	$.09,.08,.21,.26,.27,.37,	!12
+	$.11,.14,.20,.33,.52,.82,	!13
+	$.15,.11,.10,.07,.06,.07,	!14
+	$.04,.04,.07,.06,.06,.07,	!15
+	$.02,.03,.03,.03,.03,.02,	!16
+	$.01,.01,.017,.02,.02,.032,	!17
+	$.01,.01,.015,.017,.017,.02,	!18
+	$.36,.44,.31,.29,.39,.25,	!19
+	$.10,.05,.06,.07,.09,.08/	!20
+C
+	DATA NAMFA3/
+	1'Brick ma','tt, unpa','inted.  ','        ','        ',!ITT(WS)
+	2'Smooth P','laster o','n Masonr','y       ','        ',!Davis
+	3'Smooth P','laster o','n Lath  ','        ','        ',!Davis
+	4'Rough Pl','aster on','Lath    ','        ','        ',!PSabine
+	5'  20mm T','imber or',' Particl','e bd. pa','nels    ',!WSabine
+	6'  10mm P','ly Panel','ling    ','        ','        ',!Davis
+	7'  12mm G','ibraltar',' Bd. on ','4x2s @45','0crs    ',!Davis
+	8'  12mm P','inex Sof','tboard  ','        ','        ',!NZFP
+	9'Marble o','r Glazed','Ceramics','        ','        ',!Davis
+	$'Heavy Pl','ate Glas','s Large ','Panes   ','        '/!Davis  /30
+	DATA ABSOR3/ !FABRIC DATA FOR 8ve BANDS AT 125,250,500,1k,2k,4kHz
+	$.03,.03,.03,.04,.05,.07,	!21
+	$.013,.015,.02,.03,.04,.03,	!22 (Modified 2kHz, 4kHz SAG)
+	$.02,.02,.03,.04,.04,.03,	!23
+	$.02,.03,.04,.05,.04,.05,	!24 (Modified 2kHz, 4kHz SAG)
+	$.10,.11,.10,.08,.08,.11,	!25
+	$.28,.22,.17,.09,.10,.11,	!26
+	$.29,.10,.05,.04,.07,.09,	!27
+	$.20,.10,.15,.15,.12,.12,	!28 (SAG est based on NZFP ave)
+	$.01,.01,.01,.01,.02,.02,	!29
+	$.18,.06,.04,.03,.02,.02/	!30
+C
+	DATA NAMFA4/
+	1'Ordinary','Light Wi','ndow Gla','ss      ','        ',!Davis
+	2'Free Wat','er as in','Swimming',' Pools  ','        ',!Davis
+	3'Pinex (H','essian c','overed) ','"Panelwe','ave"    ',!NZFP
+	4'Pinex Ac','oustic C','eiling T','iles    ','        ',!NZFP
+	5'Pinex "N','atural F','issure" ','C.ling T','iles    ',!NZFP
+	6'Pinex "H','armony" ','Ceiling ','Tiles   ','        ',!NZFP
+	7'Seated A','udience(','ADD TO F','LOOR ABS','ORP)    ',!ITT(Sab)
+	8'Empty Hv','y. Uphol','st. Seat','ing (add',' fl)    ',!Dvis/ITT
+	9'Empty Lt','. Uphols','t. Seati','ng (add ','flr)    ',!Dvis/ITT
+	$'Empty Un','upholste','red Seat','ing(add ','flr)    '/!Davis  /40
+	DATA ABSOR4/ !FABRIC DATA FOR 8ve BANDS AT 125,250,500,1k,2k,4kHz
+	$.35,.25,.18,.12,.07,.04,	!31
+	$.008,.008,.013,.015,.020,.025,	!32
+	$.25,.08,.28,.26,.22,.25,	!33
+	$.50,.45,.40,.30,.40,.50,	!34
+	$.33,.31,.37,.55,.78,.84,	!35
+	$.26,.35,.55,.60,.68,.67,	!36
+	$.30,.39,.46,.51,.56,.56,	!37
+	$.19,.32,.37,.42,.37,.37,	!38
+	$.09,.14,.19,.19,.19,.19,	!39
+	$.014,.019,.023,.028,.046,.046/	!40   LAST ENTRY.
+C
+100	CALL DATE(BYTDAT)		!GET CURRENT DATE
+	DO 102, I=1,20			!AND INITIALISE AREA ARRAYS.
+	DO 101, K=1,80
+101	IDCASE(NCASE,K)="40
+	DO 102, J=1,40
+102	AREA(I,J)=0.0
+	DO 103, I=1,80
+103	IDJOB(I)="40
+	NCASED = 0		!No rooms yet read in from disk
+C
+C
+C	*****************START SCREEN DIALOGUE**********************
+	TYPE 105
+105	FORMAT (X'REVERB - A program to evaluate Eyring reverberation
+	1 times from fabric/areas and',/X,'room dimensions, with
+	2 optional assessment of eigentones for regular spaces.',//X'
+	3---------- <C> SANDERS JOHNSON SMITH LTD ------------------'/
+	4X'Do you want a printout of currently recognised fabrics, with
+	5 octave band'/X'absorptivities, and ranked list? (Y or N)')
+	IF( YES() ) CALL PRTTBL
+	TYPE 106
+106	FORMAT (X/X'DATA ENTRY -Do you want to read or extend an
+	1 EXISTING JOBFILE on disk? (Y or N)')
+	IF(.NOT. YES() )GO TO 200
+C
+C
+C	******OPEN, READ SPECIFIED EXISTING JOBFILE AND CLOSE AGAIN*****
+	DO 109, I=1,16
+109	FILNAM(I) = "40	!Clean out with blanks before using.
+	TYPE 110
+110	FORMAT (X'Enter file ID <DEV:FILNAM.EXT> eg. RK3:6450RB.DAT<CR>')
+	ACCEPT 115, NNAM,(FILNAM(I),I=1,NNAM)	!NNAM=Length of string
+115	FORMAT (Q,16A1)
+	OPEN (UNIT=11,NAME=FILNAM,TYPE='OLD',READONLY,ERR=118)
+	GO TO 120
+118	TYPE 119
+119	FORMAT (X'FILE NOT FOUND OR READ ERROR - GIVE CORRECT
+	1 DESCRIPTION OR EXIT WITH <CTRL C>')
+	GO TO 100
+C
+120	READ (11,122)NCASES	!N0 OF ROOMS COVERED IN DISK FILE (I2)
+122	FORMAT (I2)
+  	READ (11,125) IDJOB		!JOB ID (80A1)
+125	FORMAT (80A1)
+	DO 130, NCASE = 1,NCASES
+	READ (11,125) (IDCASE(NCASE,I),I=1,80)	!ROOM ID (80A1)
+	READ (11,127) LENGTH(NCASE),WIDTH(NCASE),HEIGHT(NCASE)
+	1,VOLUME(NCASE)
+127	FORMAT (3F6.1,F10.1)
+129	FORMAT (4(10F8.1,/))
+130	READ (11,129) ((AREA(NCASE,NFAB),NFAB=I+1,I+10),I=0,30,10)!FABRICAREAS
+	CLOSE (UNIT=11)	
+C
+C
+C	********DISPLAY EXISTING FILE'S ROOMS/SCENARIOS CONTENTS******
+	TYPE 141, (FILNAM(I),I=1,16)
+141	FORMAT (X,/X,'File ',16A1,$)
+	TYPE 142, (IDJOB(I),I=1,80)
+142	FORMAT (X' is described as:',/X,80A1,//X,'   and
+	1 has entries for the following rooms/scenarios:')
+C
+C	------  Entry point if returning from multiple choice at 5100: -----
+143	DO 149, NCASE=1,NCASES
+145	FORMAT (X,I2,':',77A1)
+149	TYPE 145, NCASE,(IDCASE(NCASE,I),I=1,77)
+	TYPE 151, NCASES+1, NCASES+1
+151	FORMAT (X,/X'Enter the number of the room/scenario you want
+	1 to examine or modify.',/X,'Otherwise enter <0> to see
+	2 more options, or <',I2,'> to start a new case ',I2,'.',/X
+	3,'(Note that new case entry may use existing case data as starting
+	4 point):')
+	ACCEPT 153,NCASE
+153	FORMAT (I3)
+	NCASED = NCASES	!Remember number of cases on input disk b4 incr NCASES
+	IF (NCASE .EQ. 0)GO TO 5000	!Go to multiple choice.
+	IF (NCASE .LT. 0 .OR. NCASE .GT. NCASES+1)GO TO 143	!Bad, retry.
+	IF (NCASE .GT. 0 .AND. NCASE .LE. NCASES)GO TO 400 !Modify existing
+	TYPE 160,NCASES,NCASE		!Default must be new NCASE = NCASES+1
+160	FORMAT (X,/X,'Do you wish to use an existing case from 1'
+	1,' - ',I2,' as a starting',/X,' point for new case ',I2
+	2,' ? - *** ANSWER (Y or N) ***')
+	IF ( .NOT. YES() )GO TO 400	!Get on with new entry otherwise
+C
+C	****** COPY FROM EXISTING (CASE NOLD) TO NEW CASE (NCASE) *******
+161	TYPE 162, (ICASE, (IDCASE(ICASE,I),I=1,77), ICASE=1,NCASES)
+162	FORMAT (X,20(/X,I2,':',77A1))
+	TYPE 164, NCASE
+164	FORMAT (X'ENTER NUMBER OF CASE WHOSE DATA YOU WISH TO
+	1 START CASE ',I2,' FROM.',/X,'(Enter <0> if confused or you
+	2 want to review existing results etc. first.)')
+	ACCEPT 166, NOLD
+166	FORMAT (I3)
+	IF (NOLD .EQ. 0)GO TO 5000	!Cold feet - go reselect procedure
+	IF (NOLD .LT. 0 .OR. NOLD .GT. NCASES)GO TO 161	!Bad entry, retry.
+C
+	DO 167, I=1,80		!Default is to copy case.
+167	IDCASE(NCASE,I) = IDCASE(NOLD,I)
+	LENGTH(NCASE) = LENGTH(NOLD)
+	WIDTH(NCASE) = WIDTH(NOLD)
+	HEIGHT(NCASE) = HEIGHT(NOLD)
+	VOLUME(NCASE) = VOLUME(NOLD)
+	DO 168, NFAB = 1,40
+168	AREA(NCASE,NFAB) = AREA(NOLD,NFAB)
+C
+	NCASES = NCASE	!Data is now entered so looks like "existing case".
+	GO TO 400		!Go and decide what mods to make to data.
+C
+C
+C	***************DEFINE NEWJOB PARAMETERS*******************
+200	TYPE 220
+220	FORMAT (X'Identify the Job, C/N, special comments for this
+	4 calculation run/jobfile (80A1):')
+	ACCEPT 225, NCHR,(IDJOB(I),I=1,NCHR)
+225	FORMAT (Q,80A1)
+	NCASES = 0	!THIS GETS UPDATED AS CASES ARE COMPLETED!!
+	NCASE = 1
+	GO TO 400	!GO ENTER DATA FOR FIRST CASE
+C
+C
+C	*************ENTER CASE (ROOM/SCENARIO) DATA**************
+400	IF (NCASE .GT. NCASES)GO TO 405	!IF THIS IS A NEW CASE
+	TYPE 402, NCASE,(IDCASE(NCASE,I),I=1,80)
+402	FORMAT (X'CASE >>',I2,'<< EXISTING DESCRIPTION
+	1 IS:',/X,80A1,/X' - DO YOU WANT TO CHANGE DESCRIPTION
+	2 (Y OR N)?')
+	IF (.NOT. YES() )GO TO 410
+405	TYPE 407, NCASE	
+407	FORMAT (X'ENTER DESCRIPTION OF CASE >>',I2,'<< (UP TO
+	1 79 CHARACTERS)')
+	DO 408, I=1,80
+408	IDCASE(NCASE,I)="40	!Clean out with blanks
+	ACCEPT 225, NCHR, (IDCASE(NCASE,I),I=1,NCHR)	!Format Q80A1
+C	---------------------------------------------------------
+410	IF (NCASE .GT. NCASES)GO TO 415	!IF THIS IS A NEW CASE
+	TYPE 412, NCASE,LENGTH(NCASE),WIDTH(NCASE),HEIGHT(NCASE)
+412	FORMAT (X'Case >',I2,'< has principal dimensions:'
+	1,/X,'LENGTH =',F6.1,' WIDTH =',F6.1,' HEIGHT=',F6.1,'(metres)'
+	2,/X,' - DO YOU WANT TO ENTER NEW DIMENSIONS (Y OR N)?')
+	IF (.NOT. YES() )GO TO 420
+415	TYPE 416, NCASE
+416	FORMAT (X'ENTER DIMENSIONS FOR CASE >',I2,'< AS
+	1 LENGTH,WIDTH,HEIGHT (metres, 3F6.1):')
+	ACCEPT 417,LENGTH(NCASE),WIDTH(NCASE),HEIGHT(NCASE)
+417	FORMAT (3F7.1)
+C	---------------------------------------------------------
+420	VOLDIM = LENGTH(NCASE) * WIDTH(NCASE) * HEIGHT(NCASE)!
+	IF (NCASE .GT. NCASES)GO TO 425	!IF THIS IS A NEW CASE
+	TYPE 422, NCASE,VOLUME(NCASE),VOLDIM
+422	FORMAT (X'CASE >',I2,'< Volume is set at ',F6.1,' Cubic
+	1 Metres.',/X,'Product of principal dimensions is ',F6.1
+	2,'and will be the smaller',/X,'according to the amount of
+	3 objects and projections into the space.',/X
+	4,'DO YOU WANT TO CHANGE THE VOLUME (Y OR N)')
+	IF (.NOT. YES() )GO TO 430
+425	TYPE 426, VOLDIM, NCASE
+426	FORMAT (X'VOLUME BASED ON PRINCIPAL DIMENSIONS IS ',F10.1
+	1,'.',/X,'ENTER ACTUAL VOLUME IN CUBIC METRES FOR
+	2 CASE >',I2,'< (F10.1):')
+	ACCEPT 428, VOLUME(NCASE)
+428	FORMAT (F10.1)
+C	---------------------------------------------------------
+430	IF (NCASE .GT. NCASES)GO TO 433	!IF THIS IS A NEW CASE
+	TYPE 431, NCASE
+431	FORMAT (X'HERE IS THE EXISTING FABRIC/AREA TABLE FOR
+	1 CASE >',I2,'<:')
+432	CALL SHODAT(NCASE)	!EXIST FABRIC/AREAS TABLE
+	GO TO 434
+433	CALL SHOTBL		!SHOW FABRIC TABLE IF STARTING NEW ENTRY
+434	TYPE 435
+435	FORMAT (X'GIVE FABRIC NUMBER TO SPECIFY A FABRIC TOTAL AREA 
+	1 (GIVE ZERO IF ALL DONE):')
+	ACCEPT 437, NFAB
+437	FORMAT (I3)
+	IF (NFAB .EQ. 0)GO TO 450
+	TYPE 438, (NAMFAB(I,NFAB),I=1,5), AREA(NCASE,NFAB)
+438	FORMAT (X,4A8,A4,' - ',F6.1,' sqm.; NEW AREA (F6.1) =?',$)
+	ACCEPT 439, AREA(NCASE,NFAB)
+439	FORMAT (F7.1)
+	GO TO 432	!GO BACK, DISPLAY AREA TABLE AND ACCEPT MORE ENTRIES
+C	-------------------------------------------------------------
+C
+450	IF (NCASE .EQ. NCASES+1)NCASES = NCASE! Update total No of cases now 
+C					that all entry questions answered.
+C
+C	-------- CHECK TOTAL FABRIC AREA  AREATL() ENTERED ----------
+	A = 0.
+	DO 452, NFAB=1,40
+452	A = A + AREA(NCASE, NFAB)
+	AREATL(NCASE) = A
+	ADIM = 2. * LENGTH(NCASE)*(WIDTH(NCASE) + HEIGHT(NCASE))
+	$ + 2. * WIDTH(NCASE) * HEIGHT(NCASE)	!SURF AREA OF RECT. SPACE.
+	TYPE 460,AREATL(NCASE),ADIM
+460	FORMAT (X'Total fabric area entered is ',F10.1,' Square Metres
+	1 compared with ',/X,F10.1,' Square Metres based on principal
+	2 dimensions.'/X,'If fabric area is vastly bigger
+	3 and there are not lots of objects or',/X,'3-sided projections
+	4 into the space, or if fabric area is the lesser,'
+	5,/X,'you have probably made a mistake.',/X,'DO YOU WANT TO GO
+	6 BACK TO REVIEW THE DATA ENTRIES FOR THIS CASE (Y OR N)?')
+	IF ( YES() ) GO TO 400
+	GO TO 500		!Else continue and process case data.
+C
+C	-------------------------------------------------------------
+500	CALL REVERB(NCASE)	!CALCULATE EYRING RT60 FOR THIS CASE
+C	-------------------------------------------------------------
+C
+C	********* DISPLAY RESULTS FOR THIS ENTRY ON THE SCREEN *****
+C	************** IN SAME FORMATS AS FINAL LISTING ************
+	TYPE 2040, (IDCASE(NCASE,I),I=1,80)
+	TYPE 2045	!Table headings
+C
+	DO 590, NFAB=1,40
+	IF (AREA(NCASE,NFAB) .EQ. 0) GO TO 590
+	TYPE 2050, NFAB, (NAMFAB(I,NFAB),I=1,5), AREA(NCASE,NFAB)
+	1,(IFIX(100.*AREA(NCASE,NFAB)
+	2*(1. - EXP( - ABSORP(N8VE,NFAB)))
+	3/(AREATL(NCASE)*TABSOR(NCASE,N8VE))),N8VE=1,6)
+C	   (NB: ABSTRUE = ( 1.- EXP(-ABSSAB) as used in above expression)
+590	CONTINUE
+	RVBAVG = 0.0
+	DO 592, N8VE = 1,6	!Calculate average reverberation time
+592	RVBAVG=RVBAVG + RVBTIM(NCASE,N8VE)/6.0	!over 6 bands.
+C
+	TYPE 2110, VOLUME(NCASE), (RVBTIM(NCASE,N8VE),N8VE=1,6)
+	1,RVBAVG
+C
+	GO TO 5000	!go choose next option.
+C
+C
+C********************************************************************
+C
+C	**************  OUTPUT ROUTINE FOR ENTIRE JOB  ***************
+1600	TYPE 1601, NCASES
+1601	FORMAT (X'**** PROGRAM FIRST PROCESSES DATA FOR ALL ',I2,' CASES
+	1 BEFORE LISTING ****')
+	DO 1602, I = 1,NCASES		!Calculate all case results
+	NCASE = I		!(This merely to avoid "poss mod'n" warning
+1602	CALL REVERB(NCASE)		!including non-altered file cases.
+C
+	TYPE 1610
+1610	FORMAT (X'Choose device for results listing (Note; input
+	1 data is stored away',/X,' under another procedure option):'
+	1,/X,'<7> - Terminal.'
+	2,/X,'<6> - Printer.'
+	3,/X,'<10> - Disk file (eg. DEV:NNNNRB.LST) .')
+	ACCEPT 1615,LUNOUT
+1615	FORMAT (I3)
+	IF (LUNOUT.EQ.6.OR.LUNOUT.EQ.7)GO TO 2000
+	IF (LUNOUT.NE.10)GO TO 1600	!If none of above, retry.
+	TYPE 1710
+1710	FORMAT (X'Enter file ID <DEV:FILNAM.EXT> eg. RK3:6450RB.LST<CR>')
+	ACCEPT 1715, NNAM,(FILNAM(I),I=1,NNAM)	!NNAM=Length of string
+1715	FORMAT (Q,16A1)
+	OPEN (UNIT=10,NAME=FILNAM,TYPE='NEW',ERR=1730)
+	GO TO 2000	!GO TO OUTPUT ROUTINE
+1730	TYPE 1732
+1732	FORMAT (X'UNABLE TO OPEN SPECIFIED OUTPUT FILE - GIVE
+	1 CORRECT FILE DESCRIPTION:')
+	GO TO 1600
+C
+C	----- WRITE FULL JOB RESULTS TABLE TO LUNOUT DEVICE ------
+C
+2000	WRITE (LUNOUT,2025) BYTDAT
+2025	FORMAT (X'REVERB     -    ROOM  ACOUSTIC  PROPERTIES
+	1  ANALYSIS   -   ',9A1)
+	WRITE (LUNOUT,2027)
+2027	FORMAT (X'--------------- <C> SANDERS JOHNSON SMITH LTD
+	1 -----------------')
+	WRITE (LUNOUT,2030) (IDJOB(I),I=1,80)
+2030	FORMAT (X,80A1)
+C
+C
+	DO 2500, NCASE = 1, NCASES
+C
+	WRITE (LUNOUT,2040) (IDCASE(NCASE,I),I=1,80)
+2040	FORMAT (X,/X,80A1)
+
+	WRITE (LUNOUT, 2045)
+2045	FORMAT (X'                                                     %
+	1 OF TOTAL BAND ABSORPTION',/X,'FAB#    FABRIC DESCRIPTION
+	2           FABRIC AREA
+	3   125  250  500 1kHz 2kHz 4kHz')
+C
+	DO 2090, NFAB=1,40
+	IF (AREA(NCASE,NFAB) .EQ. 0) GO TO 2090
+	WRITE (LUNOUT, 2050)NFAB, (NAMFAB(I,NFAB),I=1,5), AREA(NCASE,NFAB)
+	1,(IFIX( 0.5 + 100.*AREA(NCASE,NFAB)	!0.5 to round, not truncate
+	2*(1. - EXP( - ABSORP(N8VE,NFAB)))
+	3/(AREATL(NCASE)*TABSOR(NCASE,N8VE))),N8VE=1,6)
+C	   (NB ABSTRUE = ( 1.- EXP(-ABSSAB) as used in above expression)
+2050	FORMAT (X,I2,':',4A8,A4,F8.1,'  ',6I5)
+2090	CONTINUE
+	RVBAVG = 0.0
+	DO 2092, N8VE = 1,6	!Calculate average reverberation time
+2092	RVBAVG=RVBAVG + RVBTIM(NCASE,N8VE)/6.0	!over 6 bands.
+	WRITE (LUNOUT, 2110) VOLUME(NCASE),(RVBTIM(NCASE,N8VE),N8VE=1,6)
+	1,RVBAVG
+2110	FORMAT (X,/X,'VOLUME =',F10.1,'  REVERB. TIMES (EYRING RT60) ='
+	1,6F5.2,/X,'                                       MEAN REVERB.
+	2 TIME = ',F5.2,' seconds.'/)
+C
+2500	CONTINUE
+C
+	CLOSE (UNIT = LUNOUT)
+C
+	GO TO 5000
+C
+C
+C	******OPEN, WRITE SPECIFIED NEW JOBDATAFILE AND CLOSE AGAIN*****
+3100	TYPE 3102
+3102	FORMAT (X,/X'********* DISK FILING OF CURRENT JOB DATABASE AS
+	1 NNNNRB.DAT: ********',/)
+	TYPE 3110
+3110	FORMAT (X'Enter file ID <DEV:FILNAM.EXT> eg. RK3:6450RB.DAT<CR>')
+	ACCEPT 3115, NNAM,(FILNAM(I),I=1,NNAM)	!NNAM=LENGTH OF STRING
+3115	FORMAT (Q,16A1)
+	OPEN (UNIT=11,NAME=FILNAM,TYPE='NEW',ERR=3116)
+	GO TO 3120
+3116	TYPE 3117
+3117	FORMAT (X'ERROR - UNABLE TO OPEN NEW FILE - DISK UNLOADED
+	1 OR FILE EXISTS => RENAME;')
+	GO TO 3100
+C
+3120	WRITE (11,122)NCASES	!N0 OF CASES TO BE IN DISK FILE (I2)
+	WRITE (11,125) IDJOB		!JOB ID (80A1)
+	DO 3130, NCASE = 1,NCASES
+	WRITE (11,125) (IDCASE(NCASE,I),I=1,80)	!ROOM ID (80A1)
+	WRITE (11,127) LENGTH(NCASE),WIDTH(NCASE),HEIGHT(NCASE)
+	1,VOLUME(NCASE)
+3130	WRITE(11,129) ((AREA(NCASE,NFAB),NFAB=I+1,I+10),I=0,30,10)!FABRICAREAS
+	CLOSE (UNIT=11)	
+C
+C
+C
+C	********************* ASK NEXT OPTION ******************
+5000	TYPE 5010
+5010	FORMAT (X'Enter <N> to: -'
+	1,/X,'<1> - Restart - eg. to process a different JOB.'
+	2,/X,'<2> - Amend existing CASE data.'
+	3,/X,'<3> - Define a new CASE.'
+	4,/X,'<4> - Produce  listing/file for this JOB.'
+	5,/X,'<5> - Write a  data file NNNNRB.DAT for this JOB.'
+	6,/X,'<6> - Quit - abandoning data not saved to disk via 4, 5.')
+	ACCEPT 5015,INPUT
+5015	FORMAT (I4)
+	IF (INPUT .LE. 0 .OR. INPUT .GT. 6)GO TO 5000	!BAD ENTRY - RETRY.
+	GO TO(100,143,143,1600,3100,9999) INPUT
+C
+9999	STOP 'Program REVERB operator-terminated, returning to monitor.' 
+	END
+C
+C
+C
+C
+C
+	FUNCTION YES()		!Accept answer to Y or N, return logical.
+	LOGICAL YES
+	ACCEPT 1, N
+1	FORMAT (A1)
+	YES = .FALSE.
+	IF (N .EQ. 'Y')YES = .TRUE.
+	RETURN
+	END
+C
+C
+C
+	SUBROUTINE PRTTBL		!NAMFAB  READ FROM COMMON
+C
+C	************** PRINT INTERNAL TABLE OF SURFACES *********
+		DOUBLE PRECISION NAMFAB(5,40)
+	DIMENSION AREA(20,40),AREATL(20),ABSORP(6,40),TABSOR(20,6)
+	DIMENSION RVBTIM(20,6),VOLUME(20)
+	COMMON /BLK1/NAMFAB,AREA,AREATL,ABSORP,TABSOR,RVBTIM,VOLUME
+C
+	DIMENSION ABSWID(40),NFABRK(40),NRKFAB(40)!(LOCAL DEFINITIONS ONLY)
+	BYTE DAT(9)
+C
+	CALL DATE(DAT)
+C
+	DO 5, N= 1, 40	!GET AVERAGE WIDEBAND ABSORPTIVITIES
+	NFABRK(N) = N	!PRELIM ORDER BEFORE RANKING. F(N)=RANK OF FAB. N.
+	NRKFAB(N) = N	!DITTO., F(N)=FABRIC CODE NO. WHICH HAS RANK N.	
+	ABSWID(N) = 0.
+	DO 4, I = 1, 6
+4	ABSWID(N) = ABSWID(N) + ABSORP(I,N)
+5	ABSWID(N) = ABSWID(N)/6.0
+C
+C	**** BUBBLE SORT BY WIDEBAND AVERAGE ABSORPTIVITIES "ABSWID()" ***
+6	NBUBS = 0
+	DO 7, N=1,39
+	IF (ABSWID(NFABRK(N+1)) .GE. ABSWID(NFABRK(N)) ) GO TO 7!DONT SWAP
+	NFTMP=NFABRK(N)	!PUT ASIDE LOWER FABRIC TO REWRITE UPPER ULTIMATELY
+C
+	NFABRK(N) = NFABRK(N+1)	!BUBBLE SORT FABRIC BY RANK INDEXING
+	NFABRK(N+1) = NFTMP	!INTERCHANGE
+C
+	NRKFAB(NFABRK(N)) = N	!STORE RANK BY FABRIC INDEXING
+	NRKFAB(NFABRK(N+1))=N+1	!FOR THE TWO FABRICS TRANSPOSED
+C
+	NBUBS = NBUBS + 1	! - COUNT TRANSPOSITIONS THIS RUN
+7	CONTINUE
+	IF (NBUBS .GT. 0) GO TO 6	!ROUND AGAIN IF STILL BUBBLING.
+C
+C
+	PRINT 10,(DAT(I),I=1,9)
+10	FORMAT (X'    TABLE OF MATERIALS AND ABSORPTIVITIES HELD BY
+	1 <REVERB> PROGRAM AT ',9A1,/X'-----------------------------
+	3- <C> SANDERS JOHNSON SMITH LTD --------------------------'
+	4/X'Note that absorptivities are stated in Sabins as usually
+	5 given, not in absolute units. Difference apparent 
+	6 at high absorptivities'/X'which do not limit to 1.000, for
+	7 example OPEN WINDOW set at 10. effectively approximates
+	8 infinity as 0.99996 physical absorptivity.'
+	4/X'Fabrics 37 to 40 are per unit (unit=person) in
+	5 !metric sabins!. Sabins are equivalent area units of perfect
+	6ly absorptive material.'/X'When using these "fabrics",
+	7 enter number of people instead of sqm area.
+	8 These metric data are 10.79 times smaller than the Sabin'/X
+	9'(imperial unit area = 1 sq. foot) figures quoted in books.
+	1 <True units> =1-exp(-<Sabin units>) are used in Eyring
+	2 calculation.')
+	PRINT 11
+11	FORMAT (X
+	4'Code        Fabric Description                     Octave
+	5 Band Absorptivities'/X' No.                             ',
+	6'              125Hz 250Hz 500Hz  1kHz  2kHz  4kHz   AVE.
+	7  RANK')
+	DO 15, N=1,40
+	PRINT 12,N,(NAMFAB(I,N),I=1,5),(ABSORP(I,N),I=1,6),ABSWID(N)
+	1,NRKFAB(N)
+12	FORMAT (X,I2,': ',5A8,' ',6F6.2,'  ',F6.2,'  ',I2)
+15	CONTINUE
+C
+	PRINT 21
+21	FORMAT ('1**************   FABRIC  TABLE  RANKED  BY  INCREASING
+	1  AVERAGE  ABSORPTIVITY   ****************')	!1 => FF.
+	PRINT 11
+C
+	DO 25, N=1,40
+	M = NFABRK(N)
+	PRINT 22,M,(NAMFAB(I,M),I=1,5),(ABSORP(I,M),I=1,6),ABSWID(M)
+	1,N
+22	FORMAT (X,I2,': ',5A8,' ',6F6.2,'  ',F6.2,'  ',I2)
+25	CONTINUE
+	CLOSE (UNIT = 6) !Close printer output(complete table print)
+	RETURN
+	END
+C
+C
+	SUBROUTINE SHOTBL		!NAMFAB  READ FROM COMMON
+C
+C	***************DISPLAY INTERNAL TABLE OF SURFACES*********
+		DOUBLE PRECISION NAMFAB(5,40)
+	DIMENSION AREA(20,40),AREATL(20),ABSORP(6,40),TABSOR(20,6)
+	DIMENSION RVBTIM(20,6),VOLUME(20)
+	COMMON /BLK1/NAMFAB,AREA,AREATL,ABSORP,TABSOR,RVBTIM,VOLUME
+C
+	DO 2, N=1,20
+	TYPE 1,N,(NAMFAB(I,N),I=1,5),N+20,(NAMFAB(I,N+20),I=1,5)
+1	FORMAT (X,I2,':',4A8,A4,' ',I2,':',4A8,A4)
+2	CONTINUE
+	RETURN
+	END
+C
+C
+C
+	SUBROUTINE SHODAT(NCASE)	!NAMFAB, AREA READ FROM COMMON
+C	***************DISPLAY CASE TABLE OF SURFACES*********
+	DOUBLE PRECISION NAMFAB(5,40)
+	DIMENSION AREA(20,40),AREATL(20),ABSORP(6,40),TABSOR(20,6)
+	DIMENSION RVBTIM(20,6),VOLUME(20)
+	COMMON /BLK1/NAMFAB,AREA,AREATL,ABSORP,TABSOR,RVBTIM,VOLUME
+C
+	TYPE 5,NCASE
+5	FORMAT (X'ENTER FABRIC TOTAL AREAS (CASE >',I2,'<).(ENTRIES
+	1 OVER-WRITE OLD FABRIC AREAS)')
+	DO 50, N=1,20
+C
+	IF (AREA(NCASE,N) .EQ. 0.)GO TO 12
+	TYPE 10,N,(NAMFAB(I,N),I=1,4),AREA(NCASE,N)
+10	FORMAT (X,I2,3A8,A6,F7.1,$)
+	GO TO 15
+12	TYPE 13,N,(NAMFAB(I,N),I=1,5)
+13	FORMAT (X,I2,4A8,A4,' ',$)
+C
+15	IF (AREA(NCASE,N+20) .EQ. 0.)GO TO 22
+	TYPE 20,N+20,(NAMFAB(I,N+20),I=1,4),AREA(NCASE,N+20)
+20	FORMAT (X,' ',I2,3A8,A6,F7.1)
+	GO TO 50
+22	TYPE 23,N+20,(NAMFAB(I,N+20),I=1,5)
+23	FORMAT (X' ',I2,4A8,A4,' ')
+C
+50	CONTINUE
+	RETURN
+	END
+
+C
+C
+	SUBROUTINE REVERB(NCASE)
+C
+	DOUBLE PRECISION NAMFAB(5,40)
+	DIMENSION AREA(20,40),AREATL(20),ABSORP(6,40),TABSOR(20,6)
+	DIMENSION RVBTIM(20,6),VOLUME(20)
+	COMMON /BLK1/NAMFAB,AREA,AREATL,ABSORP,TABSOR,RVBTIM,VOLUME
+C
+C	************  CALCULATE TOTAL FABRIC AREA   ****************
+	A = 0.
+	DO 2, NFAB=1,40
+2	A = A + AREA(NCASE, NFAB)
+	AREATL(NCASE) = A
+C
+C	******** CALCULATE FABRIC ABS COEFF X AREA PRODUCTS ********
+	DO 20, N8VE = 1,6
+	T = 0.0
+	DO 10, NFAB = 1,40
+10	T = T + AREA(NCASE, NFAB) * (1.- EXP(-ABSORP(N8VE, NFAB)))
+C	       (NB ABSTRUE = ( 1.- EXP(-ABSSAB) )
+20	TABSOR(NCASE, N8VE) = T / AREATL(NCASE)	!AVE NETT ABSORPTION
+C
+C	*********** CALCULATE REVERBERATION TIME *******************
+	DO 30, N8VE = 1,6
+30	RVBTIM(NCASE, N8VE) = (-0.05*3.2808) * VOLUME(NCASE)/	!METRIC
+	$(AREATL(NCASE) * ALOG(1. - TABSOR(NCASE, N8VE)))!REF ITT P35-13
+C	---------  (NORRIS EYRING EQUATION)  ---------
+C
+	RETURN
+	END
+                                                                                                                             

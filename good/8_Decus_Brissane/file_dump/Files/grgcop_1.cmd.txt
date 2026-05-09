@@ -1,0 +1,9 @@
+.; COPY command processor       G. Grinton        V01.2
+.;
+	.ENABLE SUBSTITUTION
+	.ENABLE QUIET
+.;
+	.IF P2 EQ "" .ASKS P2 From
+	.IF P3 EQ "" .ASKS P3 To
+.;
+PIP 'P3'/CD/NV='P2'

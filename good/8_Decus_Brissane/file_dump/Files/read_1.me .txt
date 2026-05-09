@@ -1,0 +1,25 @@
+COMPAG.RDM - Basic Information on COMPAG Distribution Disc:
+
+Files in this distribution are:
+
+COMPAG.MAC	- Source for COMPAG
+IO.MAC		- I/O subroutines
+KEV11.MAC	- Parameter file for allowing use of MUL & DIV instructions
+COMPAG.RNO	- RUNOFF source for COMPAG manual
+COMPAG.LST	- Final manual, processed by RUNOFF and COMPAG
+COMPAG.COM	- Command file to assemble COMPAG
+COMFIL.COM	- Command file to transfer this distribution
+READ.ME		- This document
+
+COMPAG.SAV	- Non-KEV11 version
+COMPAK.SAV	- KEV11 version
+
+
+Please feel free and welcome to communicate any bugs, problems, or
+suggestions to the author
+
+			Chester Wilson
+			71 Galatea St
+			Charleville 4470
+			Queensland
+			Australia.

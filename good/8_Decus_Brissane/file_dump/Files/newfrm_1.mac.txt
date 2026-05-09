@@ -1,0 +1,84 @@
+;
+;
+;
+.SBTTL	DECLARATIONS
+;
+;
+.MCALL	FORM				; GET FORM MACRO
+;
+;
+XA	= 10.				; START OF LEFT FIELDS
+XB	= 69.				; START OF RIGHT FIELDS
+;
+;
+
+;
+;
+;
+.SBTTL	FORMAT DEFINITION
+;
+;
+;
+	FORM	CUSTOM
+;
+;	X/Y	TYPE	INITIAL DATA		X,NAME		EXTRA
+;
+FIELD XA,1  .ASC.,<..............................>	0,<SURNAME>
+FIELD XB,1  .ASC.,<......>				57.,<INITIALS>
+;
+FIELD XA,2  .ASC.,<............................................>,0,<STREET>
+FIELD XA,3  .ALP.,<..............................>		0,<SUBURB>
+FIELD XB,2  .NUM.,<DDDD>			57.,<POSTCODE>,CHECK=9999.
+FIELD XB,3  .ASC.,<..........>			57.,<PHONE>
+;
+FIELD XA,5  .ASC.,<............................................> 0,<COM1>
+FIELD XA,6  .ASC.,<............................................> 0,<COM1>
+;
+;
+;
+FIELD XA,10  .NUM.,<DDDD>			0.,<CONTRACT>,CHECK=9999.
+FIELD XA,11 .NUM.,<DDDD>			0.,<DEPOSIT>,CHECK=9999.
+FIELD XA,12 .NUM.,<DDDD>			0,<RATE>,CHECK=9999.
+FIELD XB,10  .DAT.,<XX-XX-XX>			57.,<SIGNED>
+FIELD XB,11 .DAT.,<XX-XX-XX>			57.,<EXPIRES>
+FIELD XB,12 .DAT.,<XX-XX-XX>			57.,<TERMINATED>
+;
+;
+FIELD XA,14 .NUM.,<DDDD>			0,<CREDIT>,CHECK=9999.,PROTEC=1
+FIELD XB,14 .DAT.,<XX-XX-XX>			57.,<DUE>,PROTECT=1
+;
+FIELD XA,15 .NUM.,<DDDD>			0,<LATE>,PROTECT=1
+FIELD XB,15 .NUM.,<DDDD>			57.,<TV>,PROTECT=1
+;
+;
+.ENABL	LC
+FIELD XA,17	.NUM.,<DDDD>			0,<cn>,PROTECT=1
+FIELD XB,17	.DAT.,<XX-XX-XX>		57.,<cd>,PROTECT=1
+FIELD XA,20	.NUM.,<DDDD>			0,<rn>,PROTECT=1
+FIELD XB,20	.DAT.,<XX-XX-XX>		57.,<dd>,PROTECT=1
+FIELD XA,21	.ASC.,<..>			0,<st>,PROTECT=1
+.DSABL	LC
+;
+	FORMEND					; END
+;
+
+;
+;
+.ENABL LC
+KEY	XA,1	.NUM.,<DDDD>			0,<rn>,CHECK=9999.
+KEY	XA,2	.NUM.,<DDDD>			0,<cn>,CHECK=9999.
+.DSABL LC
+KEY	XA,4	.NUM.,<DDDD>			0,<CONTRACT>
+KEY	XA,5	.NUM.,<DDDD>			0,<TV>
+;
+KEY XA,6  .ASC.,<..............................>		0,<SURNAME>
+KEY XA,7  .ASC.,<............................................>,0,<STREET>
+KEY XA,10 .ALP.,<..............................>		0,<SUBURB>
+KEY XA,11  .NUM.,<DDDD>				0,<POSTCODE>,CHECK=9999.
+;
+;
+;
+;
+	KEYEND
+;
+.END

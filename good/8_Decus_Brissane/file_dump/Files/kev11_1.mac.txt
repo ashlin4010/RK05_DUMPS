@@ -1,0 +1,3 @@
+;Prefix file for defining KEV11 for COMPAG.MAC
+
+KEV11=0

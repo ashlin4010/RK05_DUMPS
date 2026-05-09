@@ -1,0 +1,28 @@
+
+!
+~	PRINT "	Data Base Package Build"
+~	PRINT "	-----------------------"
+!
+!
+~	IF ~A = ''
+~	PRINT 'You have to supply the DB name as a parameter.'
+~	PRINT '	Try Again !'
+!
+~	EXIT
+~	ENDC
+~	IF ~B = ''
+ASSIGN [101,22]
+~	ELSE
+ASSIGN [~B]
+~	ENDC
+MACRO ~A,@DBSMNG.SML/M
+LINK
+DBSMAK=@DBSMAK,~A,@DBSLIB
+~A=~A,@DBSEDT,@DBSLIB
+REPORT=@REPORT,~A,@DBSLIB
+SELECT=@SELECT,~A,@DBSLIB
+^Z
+DEASSIGN @
+ASSI SY: DBS
+RUN DBSMAK
+!

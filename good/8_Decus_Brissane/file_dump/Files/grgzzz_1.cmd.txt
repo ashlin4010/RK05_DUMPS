@@ -1,0 +1,104 @@
+THE FOLLOWING ARE THE COMMAND FILES TO TASK BUILD THE GRG STUFF
+
+
+
+********** WOT
+
+Assemble with mac
+WOT,WOT/-SP=[1,1]EXEMC/ML/PA:1,[11,10]RSXMC/PA:1,[7,1]PRINT,[7,204]WOT
+
+Task build
+WOT/PR:5,WOT/-SP=WOT,[1,54]RSX11M.STB/SS
+LB:[1,1]SECLIB/LB
+/
+TASK=...WOT
+PRI=100
+//
+
+
+************* Command file to build WHO
+
+Assemble with MAC
+WHO,WHO/-SP=[1,1]EXEMC/ML,[7,204]WHO
+
+Task build
+WHO/PR:5,WHO/-SP=WHO,LB:[1,1]SECLIB/LB,[1,54]RSX11M.STB/SS
+/
+TASK=...WHO
+PRI=100
+//
+
+
+
+*************** SCR
+
+Assemble with MAC
+SCR=SCR
+
+Task build
+SCR=SCR
+/
+TASK=...SCR
+UNITS=1
+ACTFIL=1
+ASG=TI:1
+//
+
+
+
+****************** SHO
+
+	.ENABLE SUBSTITUTION
+	.ASK LIS Listing
+	.ASK MAP Map
+	.ASK DBG Include ODT
+	.SETS ODT ""
+	.SETS LS "NL"
+	.IFT LIS .SETS LS "SY"
+	.SETS MP "NL"
+	.IFT MAP .SETS MP "SY"
+	.IFT DBG .SETS ODT "/DA"
+pip sho.obj;*/de/nm,.lst;*,.map;*,.tsk;*,shotkb.cmd;*
+pip sho.mac/pu
+mac sho,'LS':sho/-sp=lb:[1,1]biomac/ml,sy:'<UIC>'sho
+	.OPEN SHOTKB.CMD
+	.ENABLE DATA
+sho'ODT','MP':sho/-sp=sho,[1,1]seclib/lb
+/
+task=...sho
+//
+.DISABLE DATA
+	.CLOSE
+tkb @shotkb
+ins sho
+
+
+
+
+******************** FCETKB
+
+Assemble with MAC
+FCE=FCE
+
+Task build
+FCE/PR,FCE/-SP=FCE,[7,1]OUTPUT
+/
+TASK=...FCE
+PRI=150
+UNITS=1
+ASG=TI:1
+//
+
+
+
+******************* CAT
+
+Assemble with MAC
+CAT=CAT
+
+Task build
+CAT/CP=CAT
+/
+TASK=...CA.
+PRI=120
+//

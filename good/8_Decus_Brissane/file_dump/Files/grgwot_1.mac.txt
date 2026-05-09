@@ -1,0 +1,455 @@
+	.TITLE	WOT
+
+	.IDENT	/WOT1.0/
+
+	.ENABL	LC
+	.NLIST	BEX
+
+
+; System status display program.
+
+; Geoffrey R Grinton
+; State Electricity Commission of Victoria
+
+
+; System macros
+
+	.MCALL	EXIT$S,DIR$,ASTX$S
+	.MCALL	GTIM$C,QIOW$C,QIOW$
+	.MCALL	DCBDF$,UCBDF$,TCBDF$
+	.MCALL	WTSE$C,MRKT$C
+
+
+; Definitions
+
+	DCBDF$
+	UCBDF$
+	TCBDF$
+
+; Remove the following line for a VT52 version
+
+$VT100	= 1
+
+
+; Local macros
+
+; Print a message
+
+	.MACRO	SAY	MSG
+	MOV	#MSG,TIO+Q.IOPL
+	MOV	#MSG'L,TIO+Q.IOPL+2
+	DIR$	#TIO,ERROR
+	.ENDM
+
+; Cursor control macros
+
+	.MACRO	.VAL	N
+	.ASCII	/N/
+	.ENDM
+
+; Cursor at position
+
+	.MACRO	AT	LINE,COLUMN
+	.BYTE	33
+.IF DF $VT100
+	.RADIX	10
+	.BYTE	'[
+	.VAL	\LINE
+	.BYTE	';
+	.VAL	\COLUMN
+	.BYTE	'H
+	.RADIX	8
+.IFF
+	.BYTE	'Y,LINE+37,COLUMN+37
+.ENDC
+	.ENDM
+
+; Clear screen
+
+	.MACRO	CLS
+	AT 1,1
+	.BYTE	33
+.IIF DF $VT100,	.BYTE	'[
+	.BYTE	'J
+	.ENDM
+
+; Clear from cursor to eol
+
+	.MACRO	CLL
+	.BYTE	33
+.IIF DF $VT100,	.BYTE	'[
+	.BYTE	'K
+	.ENDM
+
+
+; Definitions
+
+TTLUN = 5
+TTEFN = 5
+
+INTVL = 1			;refresh interval
+SECNDS = 2
+
+CTLZ = 32
+	.PAGE
+; Data
+
+ARGS:	.BLKW	8.		;general data area
+
+REFRSH:	.BLKW			;refresh or exit flag
+
+; Directives
+
+TIO:	QIOW$	IO.WLB,TTLUN,TTEFN,,,,<0,0,0>
+
+; Messages
+
+CLEAR:	CLS
+	AT	1.,20.
+	.ASCII	'SYSTEM STATUS AT '
+	AT	3.,1.
+	.ASCII	'USERS:'
+	AT	13.,1.
+	.ASCII	'POOL:'
+	AT	15.,11.
+	.ASCII	'Free pool  :'
+	AT	15.,41.
+	.ASCII	'Smallest:'
+	AT	16.,11.
+	.ASCII	'Free blocks:'
+	AT	16.,41.
+	.ASCII	'Largest: '
+	AT	18.,1.
+	.ASCII	'ACTIVE TASKS:'
+	AT	20.,4.
+	.ASCII	'In -'
+	AT	20.,51.
+	.ASCII	'Out -'
+CLEARL = .-CLEAR
+
+DATE:	AT	1.,37.
+	.ASCIZ	/%Y %3Z/
+
+SCRN:	CLS
+SCRNL = .-SCRN
+
+LINE:	.BYTE	15,12
+	CLL
+LINEL = .-LINE
+
+TERM:	AT	4.,1.
+TERML = .-TERM
+
+TRMS:	AT	11.,21.
+	.ASCIZ	/%D others /
+
+	.EVEN
+	.PAGE
+WOT::
+	MOV	#1,REFRSH	;start up
+
+	QIOW$C	IO.ATA,TTLUN,,,,,<KBAST,,CCAST>,,ERROR ;attach with ASTs
+
+LOOP:	TST	REFRSH		;something special?
+	BEQ	1$		;no
+	BMI	WOTEX		;exit
+
+	SAY	CLEAR		;clear screen
+	CLR	REFRSH		;not next time
+
+1$:	GTIM$C	ARGS,,ERROR
+	MOV	#DATE,R1
+	MOV	#ARGS,R2
+	CALL	OUTPUT
+
+	SAY	TERM
+
+	CALL	WHO
+
+	CALL	POOL
+
+	CALL	ACTSKS
+
+	MRKT$C	1,INTVL,SECNDS,,,ERROR	;wait
+	WTSE$C	1,,ERROR
+
+	JMP	LOOP		;go again
+
+
+WOTEX:	SAY	SCRN		;clear the screen
+	EXIT$S			;then go away
+	.PAGE
+; This routine comes from the DEC RSX-11M System Programmer's Course
+
+; It scans the RSX-11M terminal tables and displays 
+; information about each terminal configured in these tables.
+
+; NOTE:-  This program assumes that the version of RSX-11M
+;         is V3.2.
+
+; It has been modified by G. Grinton to suppress listing of
+; terminals with UIC=[0,0] (ie not logged on).
+
+WHO:
+	CLR	-(SP)			;Count terminals
+	MOV	#$DEVHD,R5		;Pointer to start of dcb list
+
+1$:	TST	R5
+	BEQ	3$			;End of dcb list scan
+
+	CMP	#"TT,D.NAM(R5)
+	BNE	2$			;If not tt dcb
+
+	CALL	UCBSCN			;Scan its UCB's
+
+2$:	MOV	D.LNK(R5),R5		;Move to next dcb
+	BR	1$
+
+
+3$:	MOV	(SP)+,R4		;How many?
+	SUB	#6,R4			;Were there more than 6?
+	BLE	4$			;no
+
+	MOV	R4,ARGS
+	MOV	#TRMS,R1
+	MOV	#ARGS,R2
+	CALL	OUTPUT			;tell about them
+	BR	5$
+
+4$:	TST	R4		;clear lines if R4 <= 0
+	BGT	5$
+	SAY	LINE
+	INC	R4
+	BR	4$
+
+5$:	RETURN
+
+
+
+; UCBSCN - Scan UCB list
+
+;		R5 = addr of dcb
+
+
+UCBSCN:	MOV	D.UCB(R5),R4		;R4=1st UCB addr
+	MOVB	D.UNIT(R5),R3		;R3=lowest unit number
+
+3$:	MOVB	R3,UNIT			;Current unit number
+	MOV	U.LUIC(R4),LUIC		;Login UIC
+	MOV	U.UIC(R4),UIC		;Current UIC
+	MOV	U.ATT(R4),R2		;R2=TCB addr
+	MOV	T.NAM(R2),TASK		;Task name
+	MOV	T.NAM+2(R2),TASK+2
+
+	TST	R2
+	BNE	2$			;Task name valid
+
+	CLR	TASK
+	CLR	TASK+2
+
+2$:	TST	LUIC			;is Login UIC = [0,0]?
+	BEQ	1$			;yes - skip him
+
+	INC	2(SP)			;Count it
+
+	CMP	2(SP),#6		;have we done 6?
+	BGT	1$			;if more, ignore
+
+	MOV	#FMT,R1
+	MOV	#PBLK,R2
+	CALL	OUTPUT			;Display this terminal
+
+1$:	ADD	D.UCBL(R5),R4		;Move to next UCB
+	INC	R3
+	CMPB	D.UNIT+1(R5),R3
+	BGE	3$			;Not end of UCB list
+
+	RETURN
+
+
+
+UNIT:	.WORD	0
+LUIC:	.WORD	0
+UIC:	.WORD	0
+
+PBLK:
+	.WORD	UNIT
+	.WORD	LUIC+1
+	.WORD	LUIC
+	.WORD	UIC+1
+	.WORD	UIC
+TASK:	.WORD	0,0
+
+
+
+FMT:	.ASCIZ	/		TT%B:  [%B,%B] [%B,%B]  %2R/
+	.EVEN
+	.PAGE
+; Pool monitor routine
+
+POOLM:	AT	15.,24.
+	.ASCII	'%D   '
+	AT	15.,51.
+	.ASCII	'%D   '
+	AT	16.,24.
+	.ASCII	'%D   '
+	AT	16.,51.
+	.ASCII	'%D   '
+	.BYTE	0
+
+	.EVEN
+
+POOL:
+	CLR	ARGS		;TOT
+	CLR	ARGS+6		;LGE
+	MOV	#-1,ARGS+2	;SML
+	CLR	ARGS+4		;NUM
+
+	CALL	$SWSTK,POOLEX	;***** ENTER SYSTEM STATE *****
+
+	MOV	$CRAVL,R5	;;
+
+1$:	BEQ	DUNPL		;;
+
+	MOV	2(R5),R0	;;
+	ADD	R0,ARGS		;;
+	CMP	R0,ARGS+6	;;
+	BLOS	2$		;;
+	MOV	R0,ARGS+6	;;
+2$:	CMP	R0,ARGS+2	;;
+	BHIS	3$		;;
+	MOV	R0,ARGS+2	;;
+3$:	INC	ARGS+4		;;
+	MOV	@R5,R5		;;
+	BR	1$		;;
+
+DUNPL:	RETURN			;;   EXIT SYSTEM STATE
+
+POOLEX:	ASR	ARGS		;change to words
+	ASR	ARGS+6
+	ASR	ARGS+2
+
+	MOV	#POOLM,R1
+	MOV	#ARGS,R2
+	CALL	OUTPUT
+
+	RETURN
+
+	.PAGE
+; Active task routine
+
+INMAX = 16.
+OUTMAX = 12.
+
+IN:	.BLKW	2*INMAX
+INXS:	.BLKW
+INX:	.WORD	OTHERS
+OUT:	.BLKW	2*OUTMAX
+OUTXS:	.BLKW
+OUTX:	.WORD	OTHERS
+
+; Format for active task list
+
+ATLFMT:
+
+II = 20.
+.REPT	4
+	AT	II,9.
+	.ASCII	/%2R	%2R	%2R	%2R/
+II = II+1
+.ENDR
+	AT	24.,21.
+A1:	.ASCII	/%D %I/
+
+II = 20.
+.REPT	4
+	AT	II,57.
+	.ASCII	/%2R	%2R	%2R/
+II = II+1
+.ENDR
+	AT	24.,66.
+A2:	.ASCII	/%D %I/
+	AT	1.,1.
+	.BYTE	0
+
+OTHERS:	.ASCIZ	/others /
+
+	.EVEN
+
+
+ACTSKS:	CLR	INXS		;clear counters
+	CLR	OUTXS
+	MOV	#IN,R4		;set pointers
+	MOV	#OUT,R3
+
+;	CALL	$LOCKL		;make the STD private
+
+	MOV	$ACTHD,R5	;point to active task list
+
+4$:	MOV	T.ACTL(R5),R2	;look at pointer to next task
+	BEQ	10$		;skip last task - it is the null task
+
+	BIT	#TS.OUT,T.STAT(R5) ;in or out? (1=out)
+	BNE	1$
+
+	CMP	R4,#INXS	;list full?
+	BEQ	20$		;yes
+	MOV	T.NAM(R5),(R4)+	;no - store task name
+	MOV	T.NAM+2(R5),(R4)+
+	BR	2$
+
+20$:	INC	INXS		;count extras
+	BR	2$
+
+1$:	CMP	R3,#OUTXS	;list full?
+	BEQ	24$		;yes
+	MOV	T.NAM(R5),(R3)+	;no - store task name
+	MOV	T.NAM+2(R5),(R3)+
+	BR	2$
+
+24$:	INC	OUTXS		;count extras
+
+2$:	MOV	R2,R5		;point to next
+	BR	4$		;go and look at it
+
+; do output
+
+10$:
+
+;	CALL	$UNLKL		;finished with STD
+
+	CMP	R4,#INXS	;fill up list of names
+	BEQ	11$
+	MOV	#^R   ,(R4)+
+	BR	10$
+
+11$:	CMP	R3,#OUTXS
+	BEQ	12$
+	MOV	#^R   ,(R3)+
+	BR	11$
+
+12$:	MOV	#ATLFMT,R1
+	MOV	#IN,R2
+	CALL	OUTPUT		;say it all
+
+	RETURN			;done
+	.PAGE
+; CTL/C AST routine
+
+CCAST:
+	MOV	#-1,REFRSH	;set flag for exit
+	TST	(SP)+		;fix stack
+	ASTX$S			;return
+
+
+; AST for characters from the keyboard
+
+KBAST:
+	MOV	#1,REFRSH	;assume clear screen
+	CMPB	@SP,#CTLZ	;but exit if CTL/Z
+	BNE	1$
+	MOV	#-1,REFRSH
+1$:	TST	(SP)+		;clean up
+	ASTX$S			;and return
+
+	.END	WOT

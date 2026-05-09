@@ -1,0 +1,170 @@
+	.TITLE	FORCE A COMMAND TO A TERMINAL
+
+	.IDENT	/FCE1.1/
+
+	.ENABL	LC
+	.NLIST	BEX
+
+; Author:	Geoffrey R Grinton
+;		State Electricity COmmission of Victoria
+
+
+; This program is used to force a command to a specified terminal.
+
+; Command syntax is:
+;	>FCE TTn:mcr-command
+; or
+;	>FCE n:mcr-command
+
+; The program requires privilege, and follows the usual rules
+; about how it may be invoked.  It should be task-built with
+; a task name of ...FCE and a reasonably high priority.
+
+
+; Task build:
+;	>TKB
+;		FORCE/PR,FORCE/-SP=FORCE,[7,1]OUTPUT
+;		/
+;		TASK=...FCE
+;		PRI=150
+;		UNITS=1
+;		ASG=TI:1
+;		//
+
+
+	.MCALL	DIR$,EXIT$S
+	.MCALL	GTSK$,SPWN$,QIOW$,GMCR$
+
+; Definitions
+
+EFN	=	1		;completion event flag
+TILUN	=	1		;TI: lun
+TIEFN	=	24		;event flag for TI:
+
+; Directives
+
+GMCR:	GMCR$			;set up MCR buffer
+
+GET:	GTSK$	GETBUF
+
+SPWN:	SPWN$	MCR...,,,,,EFN,,,0,0,0,TT
+
+QIO:	QIOW$	IO.RPR,TILUN,TIEFN,,ISB,,<GMCR+G.MCRB,80.,,PMT,PMTLEN,44>
+
+MSG:	QIOW$	IO.WLB,TILUN,TIEFN,,,,<0,0,40>
+
+
+; Buffers
+
+GETBUF:	.BLKW	17		;put task parameters here
+
+ISB:	.BLKW	2		;input status
+
+CFLAG:	.BLKW			;set if we are to loop
+
+; Messages
+
+PMT:	.ASCII	/FCE>/
+PMTLEN = .-PMT
+
+NOGDMS:	.ASCII	/FCE> Privileged command!/
+NOGDLN = .-NOGDMS
+
+SYMSG:	.ASCII	/FCE> ?Syntax/
+SYLNG = .-SYMSG
+	.EVEN
+	.PAGE
+; Start
+
+FORCE::
+
+	DIR$	#GET,ERROR	;get task parameters
+	CMPB	GETBUF+G.TSDU+1,#7 ;look at his login UIC
+	BLOS	1$		;ok if privileged	
+
+	MOV	#NOGDMS,MSG+Q.IOPL ;set up message
+	MOV	#NOGDLN,MSG+Q.IOPL+2
+	DIR$	#MSG,ERROR	;not privileged - so tell him
+	EXIT$S			;then stop it
+
+1$:	CLR	CFLAG		;assume no looping
+
+	DIR$	#GMCR		;any MCR line?
+	MOVB	$DSW,R4		;well..
+	BPL	WASMCR		;yes - go process it
+
+	CMPB	R4,#IE.AST	;legal to not have MCR line
+	BEQ	REGO
+
+	CALL	ERROR		;other errors are bad
+
+WASMCR:	MOV	#GMCR+G.MCRB,R5	;look for start of command line
+
+1$:	DEC	R4		;at end of line?
+	BMI	REGO		;yes - must get a line
+	CMPB	(R5)+,#40	;space?
+	BNE	1$		;loop till we get one
+
+				;R5 points to input
+				;R4 has no of chars in input
+	BR	DOLINE		;analyze it
+
+REGO:	MOV	#1,CFLAG	;set to loop
+
+	DIR$	#QIO,ERROR	;get command line
+
+	MOVB	ISB,R0		;get return code
+	CMPB	R0,#IS.SUC	;success?
+	BEQ	2$		;ok
+
+	CMPB	R0,#IE.EOF	;no - eof?
+	BEQ	DONE		;yes
+
+	CALL	IOERR		;tell about other error
+
+2$:	MOV	ISB+2,R4	;how many chars?
+	BEQ	DONE		;exit on none
+
+	MOV	#GMCR+G.MCRB,R5	;set up to get terminal number
+
+DOLINE:	CMPB	(R5),#'T	;legal to have 'TTn:'
+	BNE	1$		;or just 'n:'
+
+	INC	R5		;check that it is 'TT'
+	CMPB	(R5)+,#'T
+	BNE	SYNTAX		;bad syntax
+
+1$:	MOV	R5,R0		;point to start of buffer
+
+	CALL	$COTB		;read octal number
+
+	CMPB	R2,#':		;must end with ':'
+	BNE	SYNTAX		;no good
+
+	MOV	R1,SPWN+S.PWVT	;save terminal no for spwn
+
+	MOV	R0,SPWN+S.PWCA	;point to command
+
+	SUB	R5,R0		;don't count terminal number
+	SUB	R0,R4		;get number of other chars
+	BEQ	SYNTAX		;better be some!
+
+	MOV	R4,SPWN+S.PWCL	;set up length of command
+
+	DIR$	#SPWN,ERROR	;do it
+
+	BR	TNXT		;what next?
+
+SYNTAX:	MOV	#SYMSG,MSG+Q.IOPL ; set up syntax error message
+	MOV	#SYLNG,MSG+Q.IOPL+2
+	DIR$	#MSG,ERROR	;tell about the error
+
+TNXT:	TST	CFLAG		;should we loop?
+	BNE	REGO		;if so, go for next
+
+DONE:	EXIT$S			;all done
+
+
+
+
+	.END	FORCE

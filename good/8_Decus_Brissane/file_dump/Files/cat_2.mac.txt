@@ -1,0 +1,1063 @@
+	.TITLE	CAT     CATCH-ALL TASK
+
+	.NLIST	BEX
+	.ENABL	LC
+
+	.IDENT	/CA1.6/
+
+; Author:	Geoffrey R Grinton
+;		State Electricity Commission of Victoria
+
+; This program has been grown from a DEC program called TDX,
+; from which the following copyright notice is taken.
+
+; COPYRIGHT (C) 1978, 1979
+
+; DIGITAL EQUIPMENT CORP., MAYNARD, MASS.
+
+; A. GROUPE
+
+; THIS TASK, WHEN INSTALLED WITH THE NAME "...CA.", TAKES ADVANTAGE OF THE
+; "CATCH ALL" FACILITY OF THE MCR DISPATCHER. TDX IS THE DIGITAL SOFTWARE
+; ENGINEERING IMPLEMENTATION OF A CATCHALL TASK. THE CUSTOMER MAY USE THIS
+; IMPLEMENTATION AS A MODEL FOR HIS OWN CATCH ALL TASK.
+	.PAGE
+; Load macro definitions from the system macro library
+
+	.MCALL	STSE$S,EXIT$S,DIR$,GMCR$,QIOW$,EXST$S,SPWN$S
+	.MCALL  ALUN$S,GLUN$S
+	.MCALL	FINIT$,FSRSZ$
+;
+; MCALLS FOR SHUTUP
+;
+	.MCALL	TCBDF$,UCBDF$
+;
+	TCBDF$			;INVOKE THE DEFINITION MACROS
+	UCBDF$
+
+
+; Local macros
+
+; Move ASCIZ string without trailing zero
+
+ 	.MACRO	MVZ,RA,RB,?A
+A:	MOVB	(RA)+,(RB)+
+	TSTB	(RA)
+	BNE	A
+	.ENDM
+
+; Set up an entry in the command dispatcher table
+
+	.MACRO	COMMND	XYZ
+	.RAD50	/XYZ/
+	.WORD	XYZ
+	.ENDM
+
+; Execute a simple command by spawning the MCR
+
+	.MACRO	EXEC	CMD
+	.PSECT	MSGS
+CMDA = .
+	.ASCII	\CMD\
+CMDL = .-CMDA
+	.EVEN
+	.PSECT
+	MOV	#CMDA,R0
+	MOV	#CMDL,R1
+	JMP	SPAWN
+	.ENDM
+	.PAGE
+; Parameter and constant definitions
+
+EF1	= 1		; EVENT FLAG #1
+
+LUN2	= 2		; LUN FOR MESSAGES
+LUN5	= 5		; LUN FOR MESSAGES
+
+ESC	= 33		; CODE FOR ESCAPE
+
+
+; Allocate local data, dpb, and control data structures
+
+	FSRSZ$	0	; File storage region
+
+GMCR:	GMCR$		; GET-COMMAND-LINE DPB
+	.WORD	0	; GUARRANTEED BUFFER TERMINATOR OF ZERO
+
+QIOW:	QIOW$	IO.WVB,LUN5,31,,,,<0,0,40> ; QIO DPB FOR MESSAGES
+
+
+MCRNAM:	.RAD50	/MCR.../	; NAME OF MCR CLI
+
+
+MCRBUF:	.BLKW	60.		; BUFFER TO BUILD COMMAND LINE
+				; TO SEND TO MCR
+	.PAGE
+; CAT internal command table.
+
+; These 3-character commands are serviced directly by CAT.
+
+
+CMDTBL:
+
+; PIP Commands
+
+	COMMND	DIR		; List directory on TI:
+	COMMND	FUL		; List directory with full format
+	COMMND	DEL		; Delete file(s)
+	COMMND	LIS		; List file(s) on TI:
+	COMMND	PUR		; Purge files
+	COMMND	TRU		; Truncate files
+	COMMND	CRE		; Create a file and enter text into it
+	COMMND	FRE		; Display number of free blocks on a disk
+
+; SET Commands
+
+	COMMND	UIC		; Change default directory
+	COMMND	POO		; Display current amount of pool
+	COMMND	SYS		; Display current system
+
+; Other MCR commands
+
+	COMMND	ATS		; List active tasks
+	COMMND	SDV		; Change SY: assignment
+
+; RUN SHUTUP COMMAND
+
+	COMMND	SHU		; RUN SHUTUP FOR A NON-PRIVILEGED USER
+	COMMND	SHW		; Show print queues in short format
+
+; Screen commands
+
+	COMMND	CLR		; Clear screen and set VT100 to ANSII mode
+	COMMND	C80		; Set VT100 to 80 col mode
+	COMMND	C13		; Set VT100 to 132 col mode
+	COMMND	VT5		; Set VT100 to VT52 mode
+
+; Other bits and pieces
+
+	COMMND	CVT		; Generalized base conversion
+
+; End of the list
+
+	.WORD	0		; End of table
+	.PAGE
+	.SBTTL	COMPRESS COMMAND LINE
+
+; GET THE COMMAND LINE FROM MCR AND PEEL OFF THE COMMAND FROM IT.
+; THE COMMAND IS DEFINED AS THE FIRST N CHARACTERS OF THE LINE UP TO
+; BUT NOT INCLUDING THE FIRST NON ALPHANUMERIC.
+
+
+CAT:	DIR$	#GMCR		; GET FAKE COMMAND LINE
+	BCC	1$		; COMMAND LOST
+	JMP	ERR1		; too bad
+
+1$:	MOV	#GMCR+G.MCRB,R0	; START OF MCR COMMAND BUFFER
+	CLR	R1		; CONTROL FOR $CAT5
+	CALL	$CAT5		; R1 CONTAINS COMMAND NAME
+	MOV	#GMCR+G.MCRB,R5	; START OF MCR COMMAND BUFFER
+
+PEEL:
+	CMPB	(R5),#'0
+	BLO	DOIT		; LESS THAN DIGITS, COMMAND OVER
+	CMPB	(R5),#'Z
+	BHI	DOIT		; ABOVE LETTERS, COMMAND OVER
+	CMPB	(R5),#'9
+	BLOS	10$		; DIGIT, COMMAND CONTINUES
+	CMPB	(R5),#'A
+	BLO	DOIT		; BETWEEN LETTERS AND DIGITS, COMMAND OVER
+10$:
+	INC	R5		; NEXT CHAR
+	BR	PEEL
+
+
+; R5 POINTS TO THE BEGINNING OF THE COMMAND PARAMETERS. NOTE THAT THE
+; FIRST CHARACTER MAY BE A SPACE. THE LINE ENDS WITH EITHER A <CR>
+; OR AN <ESC> AND IS FOLLOWED BY A ZERO BYTE.
+
+
+DOIT:
+	MOV	#CMDTBL,R0	; SEARCH COMMAND TABLE
+				; R1 HAS THE RAD50 COMMAND
+10$:
+	TST	(R0)		; END OF TABLE?
+	BEQ	POLICY		; YES - WHAT NEXT?
+
+	CMP	R1,(R0)+	; GOT A MATCH?
+	BEQ	20$		; YES - DO IT
+
+	TST	(R0)+		; NO - SKIP POINTER
+	BR	10$		; TRY NEXT
+
+20$:
+	JMP	@(R0)+		; GO TO COMMAND PROCESSOR
+	.PAGE
+	.SBTTL 	POLICY -- DETERMINE UNKNOWN COMMAND POLICY
+
+; IF THE COMMAND ISSUED IS NOT KNOWN AS AN INTERNAL COMMAND, CONTROL
+; PASSES HERE TO DETERMINE WHAT TO DO NEXT.
+
+; POLICY IS DETERMINED BY THE PRESENCE OF A 'LOGICAL NAME', IE A
+; PSEUDO DEVICE ASSIGNMENT ASSOCIATED WITH THE USERS TERMINAL. THIS
+; ASSIGNMENT IS EITHER ESTABLISHED AS A GLOBAL LOGIN ASSIGNMENT IF
+; THE POLICY IS GLOBALLY DETERMINED, OR LOCALLY AS PART OF THE
+; ACCOUNTS LOGIN FILE.
+
+; THE FOLLOWING COMMANDS WILL SET THE POLICY.
+
+;	ASN SY:=ZZ1:	! IF "FLYING RUN$" IS DESIRED
+;	ASN SY:=ZZ2:	! IF "FLYING @CMD" IS DESIRED
+
+; THESE ASSIGNS MAY BE MADE WITH THE '/GBL' SWITCH IN THE SYSTEM
+; STARTUP FILE IF THE POLICY IS TO APPLY TO ALL USERS INSTEAD OF
+; AND INDIVIDUAL USER.
+
+; THE NAMES ARE SEARCHED IN THE ORDER GIVEN.
+; THIS MEANS THAT "ZZ1" MASKS "ZZ2:".
+; THE ABSENCE OF BOTH NAMES RESULTS IN NO POLICY.
+; THE ERROR "MCR -- Can't understand that" WILL BE RETURNED.
+
+
+POLICY:
+	CLR	R0		; SET POLICY COUNTER
+	ALUN$S	#LUN2,#"ZZ,#1	; LOOK FOR POLICY=1
+	BCC	10$		; BR IF FOUND
+
+	INC	R0		; BUMP COUNTER
+	ALUN$S	#LUN2,#"ZZ,#2	; LOOK FOR POLICY=2
+	BCC	10$		; BR IF FOUND
+
+	JMP	ERR2		; SORRY, NO POLICY ESTABLISHED
+10$:
+	ASL	R0		; TIMES 2 FOR JUMP OFFSET
+	JMP	@POLJMP(R0)	; TO POLICY IMPLEMENTATION
+
+
+; JUMP TABLE TO SPECIFIC POLICY IMPLEMENTATION ROUTINES
+
+POLJMP:	FLYINS			; ATTEMPT FLYING INSTALL
+	FLYIND			; ATTEMPT FLYING "@FILE"
+	.PAGE
+	.SBTTL	FLYINS -- FLYING INSTALL OF DESIGNATED TASK
+
+; ATTEMPT A RUNNING INSTALL OF THE TARGET TASK
+
+; WE CONSTRUCT A LINE OF THE FORM:
+
+;	"RUN $XXX/TASK=XXXTnn"
+
+; WHERE "XXX" ARE THE FIRST 3 LETTERS OF THE COMMAND,
+; AND "Tnn" IS THE TERMINAL NUMBER OF THE EXECUTING TERMINAL.
+
+; NOTE: THE PROPER EXECUTION OF THIS POLICY DEPENDS UPON:
+
+;	CAT RUNS AT A HIGHER PRIORITY THAN INSTALL. THIS IS REQUIRED IN ORDER
+;	THAT CAT CAN REGAIN CONTROL AFTER THE SPAWN OF MCR AND EXIT
+;	BEFORE RUN/INSTALL DETECTS THE NAME CLASH BETWEEN THIS COPY OF
+;	CAT WHICH IS RUNNING UNDER THE NAME "XXXTNN" AND THE TASK IT
+;	IS ATTEMPTING TO INITIATE TO RUN UNDER THE SAME NAME.
+;	IF RUN/INS DETECTS THE NAME CLASH, THERE WILL BE A
+;	"??" ERROR.
+
+
+FLYINS:
+	TSTB	1(R5)		; WE CAN'T HANDLE PARAMETERS (YET)
+	BEQ	5$		; CONTINUE
+
+	JMP	ERR2		; GIVE FAKE MCR ERROR MESSAGE FOR THIS CASE
+5$:
+	MOV	#MCRBUF,R0	; POINT TO BUFFER FOR BUILD OF STRING
+	MOV	R1,R3		; SAVE THE TARGET/COMMAND NAME
+	MOV	#RUN0,R1	; POINT TO FIRST PART OF STRING
+
+	CALL	MOVE		; SHUFFLE STRING TO BUFFER "RUN $"
+
+	MOV	R3,R1		; RESTORE COMMAND NAME
+	CALL	$C5TA		; AND CONVERT BACK TO STRING
+
+	MOV	#RUN1,R1	; POINT TO NEXT PART OF STRING
+	CALL	MOVE		; MOVE "/EST=NO/TASK=" TO BUFFER
+
+	MOV	R3,R1		; RESTORE TARGET NAME AGAIN
+	CALL	$C5TA		; AND BUILD FIRST PART OF TARGET NAME
+
+; NOW OBTAIN OUR LUN INFORMATION TO KNOW WHAT TERMINAL WERE ON.
+
+	SUB	#40.,SP		; CREATE A BUFFER ON THE STACK
+	MOV	SP,R1		; POINT TO IT
+	GLUN$S	#LUN5,R1	; OBTAIN LUN INFORMATION
+
+	MOVB	G.LUNA(R1),(R0)+ ; PUT FIRST CHARACTER OF TERMINAL NAME
+
+	CLR	R2		
+	BISB	G.LUNU(R1),R2	; PICK UP TERMINAL NUMBER
+	ADD	#40.,SP		; REMOVE TEMPORARY BUFFER
+
+	CLR	-(SP)		; MAKE A BUFFER
+	CMP	R2,#77		;IS UNIT GREATER THAN 77?
+	BLOS	40$		;IF LOS NO
+	MOV	R2,R1		;COPY UNIT NUMBER
+	ASH	#-3,R1		;CALCULATE HIGH ORDER CHARACTER
+	ADD	#'A-10,R1	;CONVERT TO ASCII
+	BIC	#177770,R2	;CALCULATE LOW ORDER CHARACTER
+	ADD	#'0,R2		;CONVERT TO ASCII
+	BR	60$		
+40$:	MOV	R2,R1		;COPY UNIT NUMBER
+	BIC	#70,R2		;MASK OFF HIGH-ORDER DIGIT
+	ADD	#'0,R2		;CONVERT TO ASCII DIGIT
+	ASRB	R1		;CALCULATE HIGH-ORDER DIGIT
+	ASRB	R1		
+	ASRB	R1		
+	BNE	50$		;IF NE THERE IS A HIGH-ORDER DIGIT
+	MOV	R2,R1		;ELSE SUPPRESS HIGH-ORDER ZERO
+	BR	70$		
+50$:	ADD	#'0,R1		;CONVERT TO ASCII DIGIT
+60$:	MOVB	R2,1(SP)	;STORE LOW DIGIT
+70$:	MOVB	R1,(SP)		;STORE IN SCRATCH SPACE			
+	MOVB	(SP),(R0)+	;STORE HIGH ORDER BYTE
+	MOVB	1(SP),(R0)	;STORE LOW ORDER BYTE
+	BEQ	80$		; BR IF NULL
+	INC	R0		;BUMP POINTER IF NOT NULL
+80$:
+	TST	(SP)+		; REMOVE SCRATHC
+
+	MOV	R5,R1		; AND NOW POINT TO RESIDUE OF COMMAND
+
+	CALL	MOVE		; APPENDING IT TO THE BUFFER
+	MOVB	#ESC,-1(R0)	; ENSURE AN ESCAPE TERMINATES THE LINE
+
+	MOV	R0,R1		; SHUFFLE LENGTH
+	MOV	#MCRBUF,R0	; PICK UP STRING ADDRESS AGAIN
+	SUB	R0,R1		; OBTAIN SIZE
+
+	JMP	SPAWN		; SPAWN MCR WITH THE COMMAND
+
+
+; DATA STRINGS FOR FLYING SPAWN
+
+RUN0:	.ASCIZ 'RUN $'
+RUN1:	.ASCIZ '/TASK='
+	.EVEN
+	.PAGE
+	.SBTTL 	FLYIND -- FLYING INDIRECT OF DESIGNATED FILE
+
+; Attempt to find a command file with the name specified.
+
+; Suppose a line which looks like this:
+;	>XXXYY AA BB
+
+; Then we will try the following (in this order):
+
+;	>@XXX XXXYY AA BB
+;	>@LB:[2,1]XXX XXXYY AA BB
+;	>@CATCHALL XXXYY AA BB
+;	>@LB:[2,1]CATCHALL XXXYY AA BB
+
+; Note that IND can pick up the arguments through parameters P1, P2, etc
+
+FLYIND:
+	FINIT$			; Init the FSR
+
+	MOV	#MCRBUF,R0	; POINT TO WORK BUFFER
+
+	MOVB	#'@,(R0)+	; Put in the '@' for IND
+
+; TRY "SY:XXX.CMD"
+
+	MOV	#SYDEV,R1	; TRY THE USERS LOGIN "SY" FIRST
+	CALL	SETDEV		; SHUFFLE TO BUFFER AND SET DDS
+	CLR	R1		; Do not specify a UIC
+	CALL	SETUIC
+	CALL	SETFIL		; SHUFFLE REMAINDER OF COMMAND 
+				; AND SET DDS WITH POSSIBLE FILENAME
+	CALL	CHKFIL		; DOES THIS FILE EXIST?
+	BCC	30$		; BR IF YES
+
+; TRY "LB:[LIBUIC]XXX.CMD"
+
+	MOV	#MCRBUF+1,R0	; POINT TO LOCATION FOR DEVICE NAME
+	MOV	#LBDEV,R1	; "LB0:"
+	CALL	SETDEV		
+	MOV	#LIBUIC,R1	; PICK UP <LIBUIC>
+	CALL	SETUIC		
+	CALL	SETFIL		; MOVE COMMAND AGAIN
+	CALL	CHKFIL		; DOES THIS ONE EXIST?
+	BCC	30$		; BR IF YES
+
+; TRY "SY:CATCHALL.CMD" FOR THE PRIVATE CATCHALL
+
+	MOV	#MCRBUF+1,R0	; POINT TO DEVICE NAME LOCATION
+	MOV	#SYDEV,R1	; POINT TO "SY"
+	CALL	SETDEV		
+	CLR	R1		; No UIC
+	CALL	SETUIC
+	CALL	SETFI2		; Put in standard name
+	CALL	CHKFIL		; IS THE FILE THERE?
+	BCC	30$		; BR IF YES
+
+; LAST CHANCE. TRY "LB:[LIBUIC]CATCHALL.CMD"
+
+	MOV	#MCRBUF+1,R0	; POINT TO LOCATION OF DEVICE
+	MOV	#LBDEV,R1	; USE "LB:"
+	CALL	SETDEV		
+	MOV	#LIBUIC,R1	
+	CALL	SETUIC		; USE [LIBUIC]
+	CALL	SETFI2		; MOVE FILENAME TO BUFFER
+	CALL	CHKFIL		; IS THE FILE THERE?
+	BCC	30$		; BR IF YES
+
+	JMP	ERR2		; SORRY NO BANANAS TODAY.
+
+
+; A FILE WAS FOUND TO EXECUTE.
+
+30$:
+	MOV	R5,R1		; PICK UP SIZE OF COMMAND
+	MOV	#MCRBUF,R0	; AND START ADDRESS
+	JMP	SPAWN		; Go and pass it to MCR (and then to IND)
+	.PAGE
+; Routine to set up the name of the file to look for.
+
+	.ENABL	LSB
+
+SETFIL:
+	MOV	#GMCR+G.MCRB,R1	; Point to the command line
+	MOV	R0,-(SP)	; Save start of string
+	MOV	R0,INDDDS+12	; Set up pointer in DDS
+	MOVB	(R1)+,(R0)+	; Move in first three characters
+	MOVB	(R1)+,(R0)+
+	MOVB	(R1)+,(R0)+
+	BR	1$		; Go to common code
+
+; Enter here to put in the default catchall name
+
+SETFI2:
+	MOV	#CATCMD,R1	; Point to default name string
+	MOV	R0,-(SP)	; SAVE START OF STRING
+	MOV	R0,INDDDS+12	; POINT TO START OF 'FILENAME' STRING
+	CALL	MOVE		; MOVE CHARACTERS CREATING THE FILENAME
+
+1$:	MOV	R0,INDDDS+10	; SET LENGTH OF 'FILE' NAME
+	SUB	(SP)+,INDDDS+10 ; COMPUTE LENGTH
+
+	MOVB	#40,(R0)+	; INSERT A SPACE BETWEEN THE FILENAME AND
+				; THE START OF THE PARAMETERS
+
+; Put in the command string as entered
+
+	MOV	#GMCR+G.MCRB,R1 ; POINT TO INPUT COMMAND
+	CALL	MOVE		; MOVE CHARACTERS UNTIL END OF COMMAND
+
+	MOV	R0,R5		; SAVE LENGTH OF TOTAL COMMAND
+	SUB	#MCRBUF,R5	
+	RETURN
+
+	.DSABL	LSB
+
+; Come here to set up a device name
+
+SETDEV:
+	MOV	R0,-(SP)	; SAVE START OF DEVICE STRING
+	MOV	R0,INDDDS+2	; SET START ADDRESS OF DEVICE STRING
+	CALL	MOVE		; MOVE STRING TO BUFFER
+	MOV	R0,INDDDS+0	; COMPUTE SIZE
+	SUB	(SP)+,INDDDS+0	
+	RETURN
+
+; Here we set up a UIC; if R1 is zero, null the fields
+
+SETUIC:
+	TST	R1		; Null?
+	BNE	1$		; No
+
+	CLR	INDDDS+4	; Yes - null fields
+	CLR	INDDDS+6
+	BR	2$		; Then exit
+
+1$:	MOV	R0,-(SP)	; SAVE START ADDRESS OF UIC STRING
+	MOV	R0,INDDDS+6	; SET START ADDRESS IN DATASET DESCRIPTOR
+	CALL	MOVE		; Move in the UIC
+	MOV	R0,INDDDS+4	; COMPUTE STRING SIZE
+	SUB	(SP)+,INDDDS+4	
+2$:	RETURN
+
+; See if the file exists
+
+CHKFIL:
+	MOV	#CATFDB,R0	; POINT TO THE GENERAL USE FDB
+	MOV	R0,R1		; BUILD A POINTER TO THE FILE NAME BLOCK
+	ADD	#F.FNB,R1	; LOCATED WITHIN THE FDB
+
+	MOV	#INDDDS,R2	; POINT TO THE DATASET DESCRIPTOR
+	MOV	#INDFNB,R3	; AND POINT TO THE DEFAULT FILENAME BLOCK
+
+	CALL	.PARSE		; LOOK FOR THE FILE
+	BCS	1$		; BR IF PARSE ERROR
+
+	CALL	.FIND		; TRY TO LOOK IT UP
+
+1$:	RETURN			; RETURN WITH ERROR IF NON EXISTENT
+	.PAGE
+; DATA FOR FLYIND
+
+	.MCALL 	FDBDF$,NMBLK$,FDOP$A
+
+CATFDB:	FDBDF$			; ALLOCATE AN FDB FOR GENERAL USE
+	FDOP$A	LUN2		; USE LUN=2 FOR GENERAL USE
+
+INDFNB:	NMBLK$	,CMD,,SY,0 	; DEFAULT FILE NAME BLOCK FOR FILE LOOKUPS
+
+INDDDS:	.BLKW	6		; DEFAULT DATASET DESCRIPTOR FOR FCS-11
+
+SYDEV:	.ASCIZ	'SY:'		; DEVICE NAME STRING FOR THE
+				; USERS DEFAULT DISK
+LBDEV:	.ASCIZ	'LB:'		; DEVICE NAME STRING FOR --THE-- SYSTEM DISK
+
+LIBUIC:	.ASCIZ	'[2,1]'		; Define the LIBUIC as [2,1]
+
+CATCMD:	.ASCIZ	'CATCHALL'	; NAME OF LB:[LIBUIC]CATCHALL.CMD WHICH
+				; IS USED AS LAST CHANCE COMMAND PROCESSOR
+	.EVEN
+	.PAGE
+	.SBTTL	THE PIP COMMAND PROCESSORS
+
+; Here are the messages for the PIP commands
+
+DIRM:	.ASCIZ	'/LI'
+FULM:	.ASCIZ	'/FU'
+PURM:	.ASCIZ	'/PU/LD'
+TRUM:	.ASCIZ	'/TR'
+FREM:	.ASCIZ	'/FR'
+CREM:	.ASCIZ	'=TI:'
+DELM:	.ASCIZ	';*/SD'
+LISM:	.ASCIZ	'PIP TI:='
+
+PIP:	.ASCIZ	'PIP '
+ALLFLS:	.ASCIZ	'*.* '		; need an extra char as 'terminator'
+
+
+; These messages are for other commands of a similar nature
+
+ATSM:	.ASCIZ	'ACT /TERM='
+
+SDVM:	.ASCIZ	'ASN '
+SDVMA:	.ASCIZ	'=SY:'
+
+	.EVEN
+
+
+; Now the commands
+
+; DIR - Print a directory
+
+DIR:	CMPB	@R5,#40		; any arg? (look for a space)
+	BNE	1$		; no
+
+	MOV	#DIRM,R2	; point to message
+	BR	PIPCMD		; go and do it
+
+1$:	EXEC	<PIP /LI>	; no - simple directory list
+
+
+; FUL - Print a directory with full format
+
+FUL:	CMPB	@R5,#40		; any arg?
+	BNE	1$		; no
+
+	MOV	#FULM,R2	; point to message
+	BR	PIPCMD		; go and do it
+
+1$:	EXEC	<PIP /FU>	; no - simple directory list
+
+
+; PUR - Purge files
+
+PUR:	MOV	#PURM,R2
+	BR	PIPCMD
+
+
+; TRU - Truncate files
+
+TRU:	MOV	#TRUM,R2
+	BR	PIPCMD
+
+
+; FRE - Display free space on a disk
+
+FRE:	CMPB	@R5,#40		; any arg?
+	BNE	1$		; no
+
+	MOV	#FREM,R2
+	BR	PIPCMD
+
+1$:	EXEC	<PIP /FR>	; no - special case for SY:
+
+
+; CRE - Create a file with PIP filespec=TI:
+
+CRE:	CALL	CHKARG		; must have an arg
+	MOV	#CREM,R2
+	BR	PIPCMD
+
+
+; DEL - Delete files
+
+DEL:	CALL	CHKARG		; can't delete nothing
+	MOV	#DELM,R2
+	BR	PIPCMD
+
+
+; LIS - List a file with PIP TI:=filespec
+
+LIS:	CALL	CHKARG		; can't list nothing
+	MOV	#LISM,R0	; different command
+	CLR	R2		; no trailing args
+	BR	PIPX		; do it
+	.PAGE
+	.SBTTL	OTHER SIMILAR COMMANDS
+
+; ATS - List all active tasks, or those at a terminal
+
+ATS:	CMPB	@R5,#40		; any arg?
+	BNE	10$		; no - do all
+
+	MOV	#ATSM,R0	; point to the command
+	MOV	#MCRBUF,R1
+	MVZ	R0,R1		; put in first part of command
+	INC	R5		; skip the blank
+	CLR	R2		; no trailing parameters
+	BR	CMDX		; go and do it
+
+10$:	EXEC	<ACT /ALL>	; simple case
+
+
+; SDV - Change the assignment of SY:
+
+SDV:	CALL	CHKARG		; Ignore if no argument
+
+	MOV	#SDVM,R0	; Point to the command
+	MOV	#MCRBUF,R1
+	MVZ	R0,R1		; Move text
+	INC	R5		; Assume a blank to skip
+	MOV	#SDVMA,R2	; Point to trailing text
+	BR	CMDX		; Go and do it
+	.PAGE
+	.SBTTL	PROCESS PIP-RELATED COMMANDS
+
+; This routine handles the setting up of PIP-related commands.
+
+; R2 is zero if no trailing parameters, else it points to them.
+
+
+; Enter here for a simple PIP command
+
+PIPCMD:	MOV	#PIP,R0		; point to PIP message
+
+; Enter here if R0 already points to a command string
+
+PIPX:	MOV	#MCRBUF,R1	; point to spawn buffer
+	MVZ	R0,R1		; put in first part of command
+
+	CMPB	@R5,#40		; were there any arguments?
+	BEQ	CMDX		; yes - use them
+	MOV	#ALLFLS,R5	; no - put in '*.*'
+
+CMDX:	MVZ	R5,R1		; put in rest of command line
+	DEC	R1		; but not the terminator
+
+	TST	R2		; any trailing parameters?
+	BEQ	2$		; no
+
+	MVZ	R2,R1		; yes - put them in
+
+2$:	MOV	#MCRBUF,R0	; point to buffer again
+	SUB	R0,R1		; get length of command to spawn
+
+	JMP	SPAWN		; go and do it
+
+
+; Subroutine to check if there are arguments.
+; If there are none, then exit.
+
+CHKARG:	CMPB	@R5,#40		; is command followed by a space?
+	BEQ	1$		; yes
+
+	JMP	EXITOK		; no - just get out
+
+1$:	RETURN			; yes - return
+	.PAGE
+	.SBTTL	UIC -- ISSUE SET /UIC=XXX COMMAND
+
+; UIC - CHANGE (OR SHOW) CURRENT UFD
+
+UICM:	.ASCIZ	'SET /UIC=['
+	.EVEN
+
+UIC:	TSTB	1(R5)		; IS THERE A UIC
+	BEQ	30$		; NO - SHOW CURRENT UIC
+
+	MOV	#MCRBUF,R1	; SPAWN BUFFER
+	MOV	#UICM,R0	; FIRST PART OF SPAWN COMMAND
+	MVZ	R0,R1		; MOVE ASCIZ STRING TO SPAWN BUFFER
+	MOV	R5,R0
+	INC	R0
+10$:	TSTB	(R0)		; ADD COMMA IF NEEDED
+	BEQ	20$
+	CMPB	(R0)+,#40	; IF SPACE IS THERE
+	BNE	10$
+	MOVB	#',,-1(R0)	; REPLACE WITH A COMMA
+
+20$:	MVZ	R5,R1		; MOVE IN UIC
+	DEC	R1		; BUMP <CR>
+	MOVB	#'],(R1)+
+	MOV	#MCRBUF,R0
+	SUB	R0,R1
+	JMP	SPAWN
+
+30$:	EXEC	<SET /UIC>	; simple case
+	.PAGE
+	.SBTTL	SIMPLE COMMANDS
+
+; The following are some simple, often-used commands
+
+
+; SHW - SHOW QUEUE WAITING LIST
+
+SHW:	EXEC	<QUE /LI>
+
+
+; SHU - SHUTUP FOR NON-PRIVILEGED USER
+
+SHU:	MOV	$TKTCB,R0	; GET THE USER'S UCB FIRST
+	MOV	T.UCB(R0),R0
+	BIS	#U2.PRV,U.CW2(R0) ; THEN SET THE PRIV BIT
+	EXEC	<RUN $SHUTUP>
+
+
+; POO - SHOW POOL AMOUNT
+
+POO:	EXEC	<SET /POOL>
+
+
+; SYS - SHOW CURRENT SYSTEM
+
+SYS:	EXEC	<SET /SYSUIC>
+	.PAGE
+	.SBTTL	SCREEN ROUTINES
+
+; Character strings for screen control
+; It is assumed that the following strings are all 5 bytes long.
+
+C80C:	.ASCII	<ESC>'[?3l'		; Set 80 columns
+C132C:	.ASCII	<ESC>'[?3h'		; Set 132 columns
+VT52:	.ASCII	<ESC>'[?2l'		; Set VT52 mode
+
+	.EVEN
+
+
+; Directive for clearing the screen
+;  Note that it does an RSX11M screen home and clear
+
+CLRDPB:	QIOW$	IO.WVB,5,1,,,,<CLRBF,CLRL,100401>
+
+; Character string for clearing VT100
+
+CLRBF:	.BYTE	ESC,'H,ESC,'J,ESC,'<	; VT52-type clear, then reset ANSII
+CLRL = .-CLRBF
+	.EVEN
+
+
+; Screen commands
+
+; CLR - Clear a screen
+
+; This does the TT-handler type clear, but just in case
+; the terminal was a VT100 in VT52 mode, it also does
+; a VT52 clear, and resets to ANSII mode.  This has no
+; effect on a VT52 or if the VT100 is in ANSII mode already.
+
+CLR:	DIR$	#CLRDPB
+	JMP	EXITOK		; All done
+
+
+; C132 - Set VT100 to 132 column mode
+
+C13:	MOV	#C132C,R0
+	BR	SETSCR
+
+
+; C80 - Set VT100 to 80 column mode
+
+C80:	MOV	#C80C,R0
+	BR	SETSCR
+
+
+; VT5 - Set VT52 mode
+
+VT5:	MOV	#VT52,R0
+
+
+; Common code for setting screen modes
+
+SETSCR:	MOV	R0,QIOW+Q.IOPL	; Store message address
+	MOV	#5,QIOW+Q.IOPL+2 ; and length
+
+	DIR$	#QIOW		; Say it
+
+	JMP	EXITOK		; That's all
+	.PAGE
+	.SBTTL	CVT - GENERALIZED BASE CONVERSION ROUTINE
+
+CVTQIO:	QIOW$	IO.WVB,5,1,,,,<BUF,,40>
+
+BUF:	.BLKW	40.
+X:	.WORD	0	; JUST NEED A WORD SOMEWHERE
+
+ASC:	.RAD50	/NULSOHSTXETXEOTENQACKBELBS HT LF VT /
+	.RAD50	/FF CR SO SI DLEDC1DC2DC3DC4NAKSYNETB/
+	.RAD50	/CANEM SUBESCFS GS RS US SP /
+
+CVT:	CMPB	(R5)+,#40	; MUST BE A SPACE
+	BEQ	10$
+	JMP	ERR3
+
+; GET INPUT BASE
+10$:	CMPB	#'#,(R5)	; OCTAL
+	BEQ	OCTAL
+	CMPB	#'%,(R5)	; RADIX 50
+	BEQ	RAD50
+	CMPB	#'",(R5)	; ASCII
+	BEQ	ASCII
+	CMPB	#'$,(R5)	; HEX
+	BEQ	HEX
+
+; ASSUME DECIMAL AT THIS POINT
+	MOV	R5,R0
+	CALL	$CDTB		; CONVERT
+	CMPB	#',,R2		; IF TERMINATING IS A COMMA, GET ANOTHER
+	BNE	FORMAT		; DECIMAL BYTE
+	MOV	R1,-(SP)
+	CALL	$CDTB
+	ASH	#8.,R1		; SHIFT TO HIGH BYTE
+	ADD	(SP)+,R1	; ADD IN LOW BYTE
+	BR	FORMAT
+
+OCTAL:	INC	R5		; SKIP PAST '#'
+	MOV	R5,R0
+	CALL	$COTB
+	CMPB	#',,R2		; ANOTHER BYTE
+	BNE	FORMAT		; NO
+	MOV	R1,-(SP)
+	CALL	$COTB
+	ASH	#8.,R1
+	ADD	(SP)+,R1
+	BR	FORMAT
+
+RAD50:	INC	R5		; PAST '%'
+	MOV	R5,R0
+	MOV	#1,R1		; PERIOD IS OK
+	CALL	$CAT5B
+	BR	FORMAT
+
+ASCII:	INC	R5		; PAST '"'
+	MOVB	(R5)+,X
+	MOVB	(R5)+,X+1
+	MOV	X,R1
+	BR	FORMAT
+
+HEX:	INC	R5
+	CLR	R1
+	MOV	#4,R2
+10$:	CMPB	(R5),#40
+	BLO	30$
+	ASH	#4,R1
+	MOVB	(R5)+,R0
+	CMP	#'A,R0
+	BHI	20$
+	SUB	#7,R0
+20$:	SUB	#'0,R0
+	BIS	R0,R1
+	SOB	R2,10$
+30$:
+
+FORMAT:	MOV	#40.,R0
+	MOV	#BUF,R5
+10$:	MOV	#"  ,(R5)+
+	SOB	R0,10$
+	MOV	R1,-(SP)	; SAVE THE WORD VALUE
+	MOV	#BUF,R0
+	CLR	R2
+	CALL	$CBDMG
+	ADD	#2,R0
+	CLR	R1
+	BISB	(SP),R1		; LOW ORDER BYTE
+	CLR	R2
+	CALL	$CBDMG
+	MOVB	#',,(R0)+
+	CLR	R1
+	BISB	1(SP),R1
+	CLR	R2
+	CALL	$CBDMG
+	ADD	#2,R0		; SOME SPACE
+	MOVB	#'#,(R0)+
+	MOV	(SP),R1
+	MOV	PC,R2		; NON-ZERO
+	CALL	$CBOMG
+	ADD	#2,R0
+	MOVB	#'#,(R0)+
+	CLR	R1
+	BISB	(SP),R1
+	MOV	PC,R2
+	CALL	$CBTMG
+	MOVB	#',,(R0)+
+	CLR	R1
+	BISB	1(SP),R1
+	MOV	PC,R2
+	CALL	$CBTMG
+	ADD	#2,R0
+	MOVB	#'$,(R0)+
+	MOV	(SP),R1
+	MOV	#8720.,R2
+	CALL	$CBTA
+	ADD	#2,R0
+	MOVB	#'%,(R0)+
+	MOV	(SP),R1
+	CALL	$C5TA
+	ADD	#2,R0
+	MOVB	#'",(R0)+
+	CMPB	(SP),#40
+	BLOS	20$
+	CMPB	(SP),#177
+	BEQ	23$
+	BHI	25$
+	MOVB	(SP),(R0)+
+	BR	30$
+20$:	MOVB	#'<,(R0)+
+	CLR	R1
+	BISB	(SP),R1
+	ASL	R1
+	MOV	ASC(R1),R1
+22$:	CALL	$C5TA
+	MOVB	#'>,(R0)+
+	BR	30$
+23$:	MOV	#^RDEL,R1
+	BR	22$
+25$:	INC	R0
+30$:
+	CMPB	1(SP),#40
+	BLOS	120$
+	CMPB	1(SP),#177
+	BEQ	123$
+	BHI	130$
+	MOVB	1(SP),(R0)+
+	BR	130$
+120$:	MOVB	#'<,(R0)+
+	CLR	R1
+	BISB	1(SP),R1
+	ASL	R1
+	MOV	ASC(R1),R1
+122$:	CALL	$C5TA
+	MOVB	#'>,(R0)+
+	BR	130$
+123$:	MOV	#^RDEL,R1
+	BR	122$
+130$:	SUB	#BUF,R0
+	MOV	R0,CVTQIO+Q.IOPL+2
+	DIR$	#CVTQIO
+	EXIT$S
+	.PAGE
+	.SBTTL	A USEFUL SUBROUTINE
+
+; *** MOVE - MOVE AN ASCIZ STRING
+
+; INPUTS:
+;	R0	-	ADDRESS OF OUTPUT BUFFER
+;	R1	-	ADDRESS OF ASCIZ STRING
+
+; OUTPUTS:
+;	R0	-	UPDATED
+
+MOVE:				
+	MOVB	(R1)+,(R0)+	; MOVE NEXT CHARACTER
+	TSTB	(R1)		; END?
+	BNE	MOVE		; IF NE NO
+	RETURN			; TO CALLER
+	.PAGE
+	.SBTTL	ERROR MESSAGES
+
+; NOTE THAT CAT ISSUES ERROR MESSAGES AS THOUGH IT WERE THE MCR
+
+	.PSECT	MSGS
+
+EM1:	.ASCIZ	'CA. -- Command lost'
+EM1L=.-EM1
+EM2:	.ASCIZ	\MCR -- Can't understand that\
+EM2L=.-EM2
+EM3:	.ASCIZ	'MCR -- Syntax error'
+EM3L=.-EM3
+EM4:	.ASCIZ	'MCR -- Line too long'
+EM4L=.-EM4
+EM5:	.ASCIZ	'MCR -- Spawn error'
+EM5L=.-EM5
+	.EVEN
+
+	.PSECT
+
+; ERROR MESSAGE PRINTING ROUTINES
+
+	.ENABL	LSB
+
+ERR1:	MOV	#EM1,R0		; ADDRESS OF ERROR MESSAGE
+	MOV	#EM1L,R1	; LENGTH OF MESSAGE
+	BR	10$
+
+ERR2:	MOV	#EM2,R0
+	MOV	#EM2L,R1
+	BR	10$
+
+ERR3:	MOV	#EM3,R0
+	MOV	#EM3L,R1
+	BR	10$
+
+ERR4:	MOV	#EM4,R0
+	MOV	#EM4L,R1
+	BR	10$
+
+ERR5:	MOV	#EM5,R0
+	MOV	#EM5L,R1
+
+10$:	MOV	R0,QIOW+Q.IOPL	; store message information
+	MOV	R1,QIOW+Q.IOPL+2
+	DIR$	#QIOW
+	BR	EXITER		; exit with error status
+
+	.DSABL	LSB
+	.PAGE
+	.SBTTL	SPAWN AND EXIT
+
+SPAWN:	CMP	R1,#80.		; LINE TOO LONG?
+	BGE	ERR4		; yes - error exit
+
+	SPWN$S	#MCRNAM,,,,,#EF1,,,R0,R1
+	BCS	ERR5		; Error doing the spawn
+
+	STSE$S	#EF1		; STOP FOR SPAWN
+				; Fall into exit
+
+
+; Exit with success status
+
+EXITOK:
+	EXST$S	#EX$SUC
+
+
+; Exit with error status
+
+EXITER:
+	EXST$S	#EX$ERR
+
+
+
+	.END	CAT
+EA 	RETURN				; HOME	 ;T ;E ;Y   ;  ;N ;H9 .SBTTL	RESCRIPTOR BLOCK - 'WND.BL' ;  ;  ;  WND.FL:	.WORD	0,0,0,0	 .TITLE	WNDIOT  .IDENT	/2509.3/  ;  ;N ;L ;W ;	WRITTEN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  

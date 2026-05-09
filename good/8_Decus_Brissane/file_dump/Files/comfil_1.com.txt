@@ -1,0 +1,12 @@
+!COMPAG Distribution Transfer Command File
+!
+R PIP
+OUT:*.*=IN:COMPAG.MAC
+OUT:*.*=IN:IO.MAC
+OUT:*.*=IN:KEV11.MAC
+OUT:*.*=IN:COMPAG.RNO
+OUT:*.*=IN:COMPAG.LST
+OUT:*.*=IN:COMFIL.COM
+OUT:*.*=IN:COMPAG.COM
+OUT:*.*=IN:READ.ME
+^C

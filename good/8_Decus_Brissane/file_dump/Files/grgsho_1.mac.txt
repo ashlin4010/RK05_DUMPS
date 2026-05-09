@@ -1,0 +1,778 @@
+	.TITLE	SHO	FILE INSPECTION PROGRAM
+
+	.IDENT	/V01.00/
+
+	.ENABL	LC
+	.NLIST	BEX
+
+
+; This program allows bi-directional inspection of a text file.
+
+; History:
+;		V01.00	May-81	Original Version
+
+; Author:
+;		Geoffrey R Grinton
+;		State Electricity Commission of Victoria,
+;		Howard Street, Richmond 3121, Australia.
+	.PAGE
+; Macro definitions
+
+; System macros
+
+	.MCALL	QIOW$,QIOW$C,DIR$,EXIT$S
+	.MCALL	MRKT$,STSE$S,CLEF$S,SETF$S,WTSE$S
+	.MCALL	ASTX$S
+	.MCALL	GCML$,GCMLB$,CSI$,CSI$1,CSI$2
+
+	.MCALL	FCSMC$
+	FCSMC$
+
+	FSRSZ$	1
+
+
+; Other external macros
+
+	.MCALL	BIOMAC
+
+	BIOMAC
+
+
+; Local macros
+
+; Flag manipulation
+
+	.MACRO	SETT	FLAG
+	MOV	#-1,FLAG
+	.ENDM
+
+	.MACRO	SETF	FLAG
+	CLR	FLAG
+	.ENDM
+
+	.MACRO	IFT	FLAG
+	IF	FLAG,NE
+	.ENDM
+
+	.MACRO	IFF	FLAG
+	IF	FLAG,EQ
+	.ENDM
+
+; Text output to the terminal without carriage control
+
+	.MACRO	PRINT	$MSG
+	.PSECT	TEXT
+$$A = .
+	.ASCII	$MSG
+$$L = .-$$A
+	.PSECT
+	MOV	#$$A,TTQIO+Q.IOPL
+	MOV	#$$L,TTQIO+Q.IOPL+2
+	DIR$	#TTQIO,ERROR
+	.ENDM
+	.PAGE
+; Constant definitions
+
+FLLUN	= 1			; LUN and EFN for input file
+
+GOEFN	= 3			; Go/halt event flag
+
+GCLUN	= 4			; LUN for indirect command file
+				; **** Note that this must be assigned
+				; at TKB time by use of the option:
+				;		ASG=TI:4
+
+TTLUN	= 5			; LUN and EFN for TI:
+TTEFN	= 5
+
+WTEFN	= 6			; EFN for delays
+HDEFN	= 7			; EFN for mode changes
+
+UP	= +1
+DOWN	= -1
+
+
+; Some useful characters
+
+LF	= 12
+FF	= 14
+CR	= 15
+ESC	= 33
+
+
+; Constants
+
+WINDOW	= 23.			; Number of lines to display
+
+MAXREC	= 1000.			; Set the size of the record number store
+	.PAGE
+; Directives
+
+
+; Attach the terminal with ASTs
+
+TTATT:	QIOW$	IO.ATA!TF.XCC,TTLUN,TTEFN,,,,<KBDAST>
+
+
+; Terminal I/O with no carriage control
+ 
+TTQIO:	QIOW$	IO.WVB,TTLUN,TTEFN,,,,<0,0,0>
+
+
+; QIO for writing a line of the file to the terminal, followed by <CR>
+
+OP:	QIOW$	IO.WVB,TTLUN,TTEFN,,,,<OBUFF,,53>
+
+
+; Set a mark time
+
+MRKT:	MRKT$	WTEFN,,1	; Units are 'ticks'
+
+
+; Hold off before changing mode
+
+HLD:	MRKT$	HDEFN,1.,2	; 1 second
+
+
+; Command line stuff
+
+GCML:	GCMLB$	2,SHO,,GCLUN	; Buffer for GCML
+	.PAGE
+; Data storage and buffers
+
+
+; Command line buffers
+	CSI$			; Define CSI offsets
+
+	.EVEN
+CSIBLK:	.BLKB	C.SIZE		; CSI buffer
+
+
+; Input file definitions and buffers
+IFL:	FDBDF$			; FDB for the input file
+
+	FDRC$A	,OBUFF,OLONG	; Init FDB for record I/O
+	FDOP$A	FLLUN,CSIBLK+C.DSDS,IDFNM,FO.RD ; File open stuff
+
+IDFNM:	NMBLK$	,MAC,,SY,0	; Default file name block
+
+
+
+; Record buffer
+OLONG	= 256.
+OBUFF:	.BLKB	OLONG		; Record Buffer
+	.EVEN
+
+
+; Logical flags and other data buffers
+
+ESCSEQ:	.BLKW			; Doing an escape sequence
+
+PREV:	.BLKW			; Number of previous line
+NEXT:	.BLKW			; Number of next line
+
+DIRN:	.BLKW			; Current direction
+
+EOFFLG:	.BLKW			; Set on EOF
+
+TIME:	.BLKW			; Delay time
+	.PAGE
+; Constant data
+
+
+; Time parameters for the delay
+
+TIM:	.BYTE	0		; 0
+	.BYTE	5.		; 1
+	.BYTE	10.		; 2
+	.BYTE	15.		; 3
+	.BYTE	20.		; 4
+	.BYTE	25.		; 5
+	.BYTE	30.		; 6
+	.BYTE	35.		; 7
+	.BYTE	40.		; 8
+	.BYTE	50.		; 9
+	.EVEN
+
+
+; Formfeed string
+
+FFSTR:	.ASCIZ	<ESC>'(0c'<ESC>'(B'
+FFSTRL	= .-FFSTR-1
+
+
+; EOF String
+
+EFSTR:	.ASCIZ	<ESC>'(0``'<ESC>'(B'
+EFSTRL	= .-EFSTR-1
+
+
+; Bottom line string
+
+BOTLIN:	.ASCII	<ESC>'[1;23r'	; Scroll area is 23. lines
+	.ASCII	<ESC>'[24;1H'<ESC>'[7m'	; Bottom, reverse video
+	.REPT	80.
+	.ASCII	' '
+	.ENDR
+	.ASCII	<ESC>'[24;4HFile:'
+	.ASCII	<ESC>'[24;41HTop:'
+	.ASCII	<ESC>'[24;56HBottom:'
+	.ASCII	<ESC>'[0m'
+	.BYTE	0
+
+
+; File name
+
+FNAME:	.ASCII	<ESC>'[24;11H'<ESC>'[7m'
+	.ASCII	'%X'
+	.ASCII	<ESC>'[0m'
+	.BYTE	0
+
+
+; Line numbers
+
+	.EVEN
+LINNUM:	.ASCII	<ESC>'[24;71H'<ESC>'[7m'
+TBOF:	.ASCII	'    '			; Must be at an even address
+	.ASCII	<ESC>'[24;46H%D   '
+	.ASCII	<ESC>'[24;64H%D   '
+	.ASCII	<ESC>'[0m'
+	.BYTE	0
+
+	.EVEN
+	.PAGE
+; Tables of control characters and routines
+
+CTABL:
+
+	.BYTE	'F		; Fast scroll
+	.BYTE	'S		; Smooth (or slow) scroll
+	.BYTE	'L		; Light screen
+	.BYTE	'D		; Dark screen
+	.BYTE	'W		; Wide screen
+	.BYTE	'N		; Narrow screen
+
+	.BYTE	ESC		; Start of escape sequence (up/down)
+	.BYTE	'[		; Middle of escape sequence
+	.BYTE	'A		; Up-arrow
+	.BYTE	'B		; Down-arrow
+
+	.BYTE	26.		; CTRL/Z (exit)
+
+	.BYTE	0		; End of table
+
+	.EVEN
+
+
+; Routine addresses
+
+CSUB:
+
+	.WORD	FAST
+	.WORD	SLOW
+	.WORD	LIGHT
+	.WORD	DARK
+	.WORD	WIDE
+	.WORD	NARROW
+	.WORD	DIRSET
+	.WORD	SQB
+	.WORD	SETUP
+	.WORD	SETDN
+	.WORD	EXIT
+	.PAGE
+; Mainline code
+
+
+SHO::
+
+
+; Get command line and parse it
+
+	GCML$	#GCML
+	IF	CS
+		IFB	GCML+G.ERR,NE,#GE.EOF	; EOF?
+			PRINT	^/<LF>'SHO> Command line error'<LF>/
+		END
+		JMP	EXIT
+	END
+
+	CSI$1	#CSIBLK,GCML+G.CMLD+2,GCML+G.CMLD
+	IF	CS
+		PRINT	^/<LF>'SHO> Command line error'<LF>/
+		JMP	EXIT
+	END
+
+	CSI$2	#CSIBLK,OUTPUT	; Get file specification
+	IF	CS
+		PRINT	^/<LF>'SHO> Invalid file-spec'<LF>/
+		JMP	EXIT
+	END
+
+
+	OPEN$R	#IFL		; Open the file
+
+	IF	CS
+		IFB	F.ERR+1(R0),PL	; IO error
+			IFB	F.ERR(R0),EQ,#IE.NSF	; Non-existent file?
+				PRINT	^/<LF>'SHO> No such file'<LF>/
+				JMP	EXIT
+			END
+		END
+		CALL	FCSERR		; Other error
+	END
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Initialise flags and prepare to startup
+
+	DIR$	#TTATT,ERROR	; Attach the terminal with ASTs
+
+	CLR	ESCSEQ		; Not doing an escape sequence
+
+	MOV	#UP,DIRN	; Going up to start with
+
+	CLR	NEXT		; Next line is line 0
+	CALL	SETPRV		; Initialise other pointers
+
+	CLR	TIME		; No delays
+	SETF	EOFFLG		; Not at EOF yet
+
+	SETF$S	#GOEFN,ERROR	; Start in motion
+
+	PRINT	^/<ESC>'[H'<ESC>'[J'<ESC>'[?4h'<ESC>'[?7l'/
+				; Clear the screen, slow mode, no wrap-around
+
+	CALL	SETSCR		; Init the screen
+	.PAGE
+; This is the major loop
+
+
+	REPEAT
+
+		CALL	PAUSE		; Delay if we have to
+
+		IF	DIRN,EQ,#UP
+
+			CALL	MOVEUP
+
+		END
+
+		IF	DIRN,EQ,#DOWN
+
+			CALL	MOVEDN
+
+		END
+
+		STSE$S	#GOEFN,ERROR	; Wait till it is OK to go on
+
+	UNTIL	#1,EQ			; Loop forever
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Routine to pause a while
+
+PAUSE:
+
+	MOV	TIME,MRKT+M.KTMG	; Set up the time
+
+	IF	NE		; No pause if the delay is zero
+
+		DIR$	#MRKT,ERROR		; Mark time
+		STSE$S	#WTEFN,ERROR		; Wait
+
+	END
+
+	RETURN
+	.NLIST
+	ENDCHK
+	.LIST
+
+
+
+
+; Routine to set up a pointer to the 'previous' line.
+
+; This is the line before the first one on the screen.
+
+SETPRV:
+
+	MOV	NEXT,R0
+	SUB	#WINDOW,R0
+	DEC	R0
+	MOV	R0,PREV
+	RETURN
+	.PAGE
+; Set up the screen with the file name in the bottom line
+
+SETSCR:	MOV	#BOTLIN,R1	; Point to bottom line string
+	CALL	OUTPUT		; Print it
+
+	MOV	#<IFL+F.FNB+N.FNAM>,R2	; Point to File Name Block
+	MOV	#FNAME,R1		; Point to string
+	CALL	OUTPUT			; Put in file name
+
+	RETURN
+	.PAGE
+; Routine to move 'up' one line.
+
+; This means to add a new line at the bottom of the screen.
+
+MOVEUP:
+
+	IFF	EOFFLG		; If not already at EOF
+
+		PRINT	^/<ESC>'[23;1H'<LF>/	; Put cursor at bottom and LF
+
+		MOV	NEXT,R0		; Get number of next line
+		CALL	POSITION	; Position the file for it
+		GET$	#IFL		; Get a record
+
+		IF	CS
+
+			IFB	F.ERR+1(R0),PL	; IO error
+				IFB	F.ERR(R0),EQ,#IE.EOF
+					IFF	EOFFLG		; Only if not EOF already
+						MOV	#OBUFF,R1
+						MOV	#EFSTRL,IFL+F.NRBD
+						MOV	#EFSTR,R2	; Point to EF string
+						WHILEB	@R2,NE		; Move into buffer
+							MOVB	(R2)+,(R1)+
+						END
+						CLEF$S	#GOEFN,ERROR	; Stop it
+						SETT	EOFFLG		; Remember the EOF
+					END
+				ELSE
+					CALL	FCSERR
+				END
+			ELSE
+				CALL	FCSERR
+			END
+
+		END
+
+		INC	NEXT		; Increment line number
+		CALL	SETPRV		; Update
+
+		CALL	DISPLAY		; Put the line on the screen
+
+		CALL	SAVEPOS		; Save file position
+
+	ELSE
+
+		CLEF$S	#GOEFN,ERROR		; He tried to go up when at EOF
+
+	END
+
+	RETURN
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Routine to move 'down' a line.
+
+; This means to show the line before the first currently on the screen.
+
+MOVEDN:
+
+	IF	PREV,GE		; Do not go before the beginning
+
+		PRINT	^/<ESC>'[H'<ESC>'M'/	; Put cursor at top and scroll
+
+		MOV	PREV,R0		; Get the line number
+		CALL	POSITION	; Point to the line
+		GET$	#IFL		; Read the record
+
+		IF	CS
+			CALL	FCSERR		; All errors fatal here
+		END
+
+		DEC	NEXT		; Decrement pointers
+		CALL	SETPRV
+
+		CALL	DISPLAY		; Show this line
+
+		SETF	EOFFLG		; Not at eof now
+
+	END
+
+	RETURN
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Routine to display a line
+
+DISPLAY:
+
+	MOV	#OBUFF,R1		; Point to buffer
+	MOV	IFL+F.NRBD,R0		; Get character count
+
+	IF	EQ
+		MOV	#40,@R1		; Print a blank line for null count
+		MOV	#1,R0
+	END
+
+	IFB	R0,EQ,#1		; Test for Formfeed
+	ANDB	@R1,EQ,#FF
+		MOV	#FFSTRL,R0	; Put out VT100 FF character
+		MOV	#FFSTR,R2	; Point to FF string
+		WHILEB	@R2,NE		; Move into buffer
+			MOVB	(R2)+,(R1)+
+		END
+	END
+
+	MOV	R0,OP+Q.IOPL+2		; Save character count for output
+	DIR$	#OP,ERROR
+
+	MOV	#"  ,TBOF		; Assume middle of file
+	MOV	#"  ,TBOF+2
+	IF	PREV,LT			; Test for BOF
+		MOV	#" B,TBOF
+		MOV	#"OF,TBOF+2
+	END
+	IFT	EOFFLG			; Test for EOF
+		MOV	#" E,TBOF
+		MOV	#"OF,TBOF+2
+	END
+
+	MOV	NEXT,-(SP)		; Push bottom line number
+	DEC	@SP
+	MOV	PREV,-(SP)		; And top line number
+	INC	@SP
+	IF	LT
+		CLR	@SP
+	END
+	MOV	SP,R2			; Point to them
+	MOV	#LINNUM,R1		; Point to string
+	PRINT	^/<ESC>'[24;1H'/	; Put cursor in bottom line
+	CALL	OUTPUT			; Put on screen
+	CMP	(SP)+,(SP)+		; Clean up
+
+	RETURN
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Routines to save and restore a file position
+
+
+; Save the file position
+
+SAVEPOS:
+
+	MOV	#IFL,R0		; Point to FDB
+	CALL	.MARK		; Get the information
+
+	MOV	NEXT,R0		; Point into the buffer
+
+	IF	R0,GT,#MAXREC	; Overflow?
+		PRINT	^/<ESC>'[23;1H'<ESC>'[JSHO> Buff overflow'/
+		JMP	EXIT
+	END
+
+	ASL	R0
+	ADD	NEXT,R0
+	ASL	R0		; R0 := 6 * NEXT
+	ADD	#STORE,R0
+
+	MOV	R1,(R0)+	; Save the information
+	MOV	R2,(R0)+
+	MOV	R3,(R0)+
+
+	RETURN
+
+
+; Restore the file position
+
+POSITION:
+
+	MOV	R0,-(SP)	; R0 has the record number
+	ASL	R0
+	ADD	(SP)+,R0
+	ASL	R0		; R0 := 6 * R0
+	ADD	#STORE,R0	; Point to file information
+
+	MOV	(R0)+,R1	; Restore it
+	MOV	(R0)+,R2
+	MOV	(R0)+,R3
+
+	MOV	#IFL,R0		; Point to the FDB
+	CALL	.POINT		; Set up the file
+
+	RETURN
+	.PAGE
+; AST routine for the keyboard
+
+KBDAST::
+
+	MOV	R0,-(SP)	; MUST save registers I use
+	MOV	R1,-(SP)
+	MOV	R2,-(SP)
+	MOV	R3,-(SP)
+
+	MOV	10(SP),R0	; Get the character
+	BIC	#177600,R0	;  as a byte
+
+	INBND	#<'a>,R0,#<'z>	; Change lower to upper case
+		BIC	#40,R0
+	END
+
+	INBND	#<'0>,R0,#<'9>	; Is it a digit?
+
+		BIC	#^C17,R0	; Yes - make binary
+		MOVB	TIM(R0),TIME	; Set up the delay parameter
+
+	ELSE
+
+		MOV	#CTABL,R1	; No - check other commands
+		MOV	#CSUB,R2
+		CLR	R3		; Flag for legal command
+
+		REPEAT
+
+			IFB	R0,EQ,(R1)+
+
+				INC	R3		; Set flag
+				CALL	@(R2)+		; Execute routine
+
+			ELSE
+
+				TST	(R2)+
+
+			END
+
+		UNTILB	@R1,EQ
+
+		IF	R3,EQ		; Did we find the command?
+
+			CLEF$S	#GOEFN,ERROR	; No - change the flag to stop
+			SETF	ESCSEQ		; and forget any esc sequence
+
+		ELSE
+
+			SETF$S	#GOEFN,ERROR	; Yes - running still
+
+		END
+
+	END
+
+	MOV	(SP)+,R3	; Restore registers
+	MOV	(SP)+,R2
+	MOV	(SP)+,R1
+	MOV	(SP)+,R0
+
+	TST	(SP)+		; Pop KBD char off stack
+
+	ASTX$S			; Get out of the AST routine
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Routines for the various commands
+
+DIRSET:	SETT	ESCSEQ		; Remember the escape sequence
+	RETURN
+
+
+SQB:	IFF	ESCSEQ		; Ignore '[' in escape sequences
+		CLR	R3	;  by re-setting the flag
+	END
+	RETURN
+
+
+SETUP:	IFT	ESCSEQ		; Check
+		IF	DIRN,NE,#UP
+			CALL	WAIT
+			MOV	#UP,DIRN
+		END
+	ELSE
+		CLR	R3	; Clear flag if not in esc sequence
+	END
+	SETF	ESCSEQ		; Not an escape sequence now
+	RETURN
+
+
+SETDN:	IFT	ESCSEQ		; Check
+		IF	DIRN,NE,#DOWN
+			CALL	WAIT
+			MOV	#DOWN,DIRN
+		END
+	ELSE
+		CLR	R3	; Clear flag if not in esc sequence
+	END
+	SETF	ESCSEQ		; Not an escape sequence now
+	RETURN
+
+
+FAST:	CALL	HOLD		; Pause
+	PRINT	^/<ESC>'[?4l'/
+	RETURN
+
+
+SLOW:	CALL	HOLD		; Pause
+	PRINT	^/<ESC>'[?4h'/
+	RETURN
+
+
+WIDE:	CALL	WAIT
+	PRINT	^/<ESC>'[?3h'/
+	CALL	SETSCR		; Reset the screen
+	RETURN
+
+
+NARROW:	CALL	WAIT
+	PRINT	^/<ESC>'[?3l'/
+	CALL	SETSCR		; Reset the screen
+	RETURN
+
+
+LIGHT:	CALL	WAIT
+	PRINT	^/<ESC>'[?5h'/
+	RETURN
+
+
+DARK:	CALL	WAIT
+	PRINT	^/<ESC>'[?5l'/
+	RETURN
+
+
+; Exit from the program
+
+; Note that errors exit through here too
+
+EXIT:	CALL	WAIT
+	PRINT	^/<ESC>'[1;24r'<ESC>'[24;1H'<ESC>'[J'<ESC>'[?4l'<ESC>'[?7h'/
+	EXIT$S
+	.NLIST
+	ENDCHK
+	.LIST
+	.PAGE
+; Do a short delay before changing terminal modes
+
+; The VT100 seems to get upset if you try to change its mode on the fly,
+; and requires a reset before it will do anything sensible again.
+
+HOLD:	CALL	WAIT		; Wait till terminal is ready
+	DIR$	#HLD,ERROR	; Wait another half second
+	WTSE$S	#HDEFN,ERROR	; ...
+	RETURN
+
+
+WAIT:	WTSE$S	#TTEFN,ERROR	; Wait till terminal is free
+	RETURN
+
+
+
+; This is the buffer for record pointers
+
+	.PSECT	PNTRS
+
+STORE::	.WORD	0,1,0		; First record starts at the start of the file
+	.BLKW	3*MAXREC
+
+
+
+
+	.END	SHO

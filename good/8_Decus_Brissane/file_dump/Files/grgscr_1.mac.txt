@@ -1,0 +1,99 @@
+	.TITLE	SCR
+
+	.IDENT	/V01.0/
+
+	.ENABL	LC
+	.NLIST	BEX
+
+; Author:	Geoffrey R Grinton
+;		State Electricity Commission of Victoria.
+
+
+; This program is used to split a VT100 screen into two.
+
+; Syntax:
+
+;	>SCR		Restore screen
+;	>SCR T		Set up top of screen
+;	>SCR B		Set up bottom of screen
+
+
+	.MCALL	EXIT$S,DIR$,GMCR$,QIOW$
+
+ESC	= 33
+SPACE	= 40
+Q	= 'q		; MAC doesn't like LC in macros
+
+GMCR:	GMCR$
+
+QIO:	QIOW$	IO.WVB,1,1,,,,<0,0,0>
+
+
+RES:	.ASCII	<ESC>'[?6l'		; Screen reset
+	.ASCII	<ESC>'[1;24r'
+	.ASCII	<ESC>'[1;1H'
+	.ASCII	<ESC>'[J'
+RESL	= .-RES
+
+TOP:	.ASCII	<ESC>'[?6l'
+	.ASCII	<ESC>'[1;11r'
+	.ASCII	<ESC>'[12;1H'
+	.ASCII	<ESC>'(0'
+	.REPT	80.
+	.BYTE	Q
+	.ENDR
+	.ASCII	<ESC>'(B'
+	.ASCII	<ESC>'[11;1H'
+TOPL	= .-TOP
+
+BOT:	.ASCII	<ESC>'[?6l'
+	.ASCII	<ESC>'[13;24r'
+	.ASCII	<ESC>'[12;1H'
+	.ASCII	<ESC>'(0'
+	.REPT	80.
+	.BYTE	Q
+	.ENDR
+	.ASCII	<ESC>'(B'
+	.ASCII	<ESC>'[24;1H'
+BOTL	= .-BOT
+
+	.EVEN
+	.PAGE
+; Here is the code
+
+
+SCR:	DIR$	GMCR		; Get command line
+	BCS	EX		; Exit if none
+
+	MOVB	$DSW,R0		; How many characters
+	MOV	#GMCR+G.MCRB,R1	; Point to them
+
+1$:	CMPB	(R1)+,#SPACE	; Look for a space
+	BEQ	3$
+	SOB	R0,1$		; Check for end of line
+
+2$:	MOV	#RES,R0		; Yes - clear screen and reset
+	MOV	#RESL,R1
+	BR	OP
+
+3$:	CMPB	@R1,#'T		; Is character after space 'T'
+	BNE	4$		; No
+
+	MOV	#TOP,R0		; Yes - set up top of screen
+	MOV	#TOPL,R1
+	BR	OP
+
+4$:	CMPB	@R1,#'B		; No - check for 'B'
+	BNE	EX		; No - ignore it
+
+	MOV	#BOT,R0		; Yes - set up bottom
+	MOV	#BOTL,R1
+
+OP:	MOV	R0,QIO+Q.IOPL	; Set up to say
+	MOV	R1,QIO+Q.IOPL+2
+	DIR$	#QIO
+
+EX:	EXIT$S
+
+
+	.END	SCR

@@ -1,0 +1,111 @@
+.comment - prototype Lab Report - edit 16-Jan-81 - G. R. Grinton
+^^
+.nnm
+.nhy
+.ap
+.p 0,1,t
+.nf
+State Electricity Commission of Victoria
+Research and Development Department
+.s
+Herman Research Laboratory,
+Howard Street, Richmond,
+Victoria 3121, Australia.
+.s
+Telephone: 03 429 1511 X492
+.s 5
+.c;  LABORATORY  REPORT
+.s
+.comment - insert report number here (twice)
+.title LS/81/119
+                                               No: LS/81/119
+.s
+.comment - insert date of report here
+                                             Date: 25-Jun-81
+.s 5
+.c;  ***********************************
+.c;  *                                 *
+.c;  *                                 *
+.c;  *              WHO                *
+.c;  *                                 *
+.comment - insert title here
+.c;  *    A SIMPLE TERMINAL MONITOR    *
+.c;  *       PROGRAM FOR RSX-11M       *
+.c;  *                                 *
+.c;  *                                 *
+.c;  ***********************************
+.s 4
+Subject:
+.s 4
+.f
+.comment - insert summary and introduction here
+.s
+This document describes a program for the RSX-11M computer system
+to enable a user to determine which terminals are currently logged on
+and to see who is using them.
+.s 4
+.nf
+                                Signed:   Geoffrey R Grinton
+                                          Scientific Officer
+.pg
+ 
+.s 30
+.comment - insert job details here
+Submitted by:             Name:     G. R. Grinton
+                          Section:  Engineering Systems
+                          Phone:    492
+ 
+Accepted by:              Name:     G. R. Grinton
+                          Section:  Engineering Systems
+ 
+                          On:       1-Mar-80
+ 
+Activity Number: 922509
+ 
+Remarks:
+ 
+.comment - insert RSX-11 file name here
+File: [110,42]LS81119.RNO
+ 
+.f
+.nm 0
+.pg
+.hl 1 INTRODUCTION
+Program WHO is a monitor program for the RSX-11M computer system.
+It allows a user to determine which terminals are currently in a
+logged-on state, and to see who is using each.
+.hl 1 USING WHO
+The utility may be invoked by any of the standard RSX methods.
+The task file resides in the [2,54] library, and is usually
+installed with task name '...WHO'.
+
+Any of the following commands may be used:
+.s
+.lm +5
+.nf
+WHO
+
+RUN ...WHO
+
+RUN LB:[2,54]WHO
+.S
+.LM 0
+.f
+.hl 1 INFORMATION DISPLAYED
+For each terminal currently logged on to the system the display
+includes:
+.ls
+.le The terminal number;
+.le The terminal type;
+.le The user's login UIC;
+.le The name of any task which has attached the terminal.
+.els
+For privileged users the UIC displayed in the third field is
+the same as the current UIC, since on RSX-11M a SET#/UIC command
+for such a user changes the parameters stored in the relevant
+tables.
+.s 5
+G.#R.#Grinton
+.br
+.comment - Insert report edit date here
+25-Jun-81

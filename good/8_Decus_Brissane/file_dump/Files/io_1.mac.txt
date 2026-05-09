@@ -1,0 +1,359 @@
+.TITLE	IO - General Purpose RT-11 Byte I/O
+.NLIST	BEX,TOC
+.ENABL	LC
+
+.SBTTL	V1B	10-Apr-80
+
+	.IF EQ 1
+Author:	C G Wilson, 71 Galatea St, Charleville 4470, Australia.
+
+Subroutines:
+	IOSET:		(R0, R1, & R2 destroyed)
+	IOSETX:
+	IOSETS:
+		Called by JSR PC,IOSET(X) - does a CSIGEN setting up the
+		handlers at (HLIMIT), then getting all available memory
+		for setting up buffers ( 1 for input & 1 for output),
+		resetting HLIMIT accordingly.  Returns CS if no space for
+		even 1000 byte buffers.
+
+		IOSET does a .SRESET, and resets HLIMIT from LIMIT+2.
+		IOSETX does no .SRESET and uses current HLIMIT.
+		IOSETS allows the user to do his own CSIGEN and switch handling,
+			but requires other restrictions because of this:
+			(1) R0 must contain the new high core limit such
+				as would have been returned by CSIGEN,
+			(2) A call to IOCHK should have been made to check for
+				no files specified.  Otherwise on finding no
+				files specified the <prognam> <vermes> message
+				will be typed and the routine re-entered at
+				IOSETX, thereby getting a new command line
+				without the controlling programme knowing of it.
+
+		One output file only is set up in this version.  Up to 6 input
+		files may be specified, but will be read sequentially on calls
+		to INB.
+
+	INB:		(R0 returns value)
+		Returns a byte from the input, with no editing.
+		CS return if EOF or error (contents of @#ERRBYT are
+		stored in IOERB)
+	OUB:		(No registers altered)
+		Transfers byte in R0 to output, returning CS on error.
+	OUS:		(No registers altered)
+		Sends string pointed to in R0 as per .PRINT request to terminal
+		(ie null terminator gives <cr><lf>, <200> gives nothing extra).
+	OUCLR:		(R0 cleared)
+		Sends current characters in a null-filled buffer up to the
+		current 1000-char (256. word) boundary.
+	IOCHK:		(R0 destroyed)
+		Checks for existence of an input and an output file on channels
+		3 and 0 respectively, setting up INFIL and OUFIL suitably.
+		If neither channel is in use, the <pname> <vermes> message
+		is typed and the CS return taken.
+
+Globals:
+	INFIL (byte) non-zero if input file specified
+	OUFIL (byte) ibid, output file
+	(if neither file is specified, VERMES is printed and another file
+		specification is sought)
+	IOERB	gets monitor error byte on read & write errors
+	LIMIT	a .LIMIT area
+	HLIMIT	loc above last loc in use.  To be set before entry to IOSET
+	INBUF	pointer to input buffer
+	INSIZ	contains size of input buffer (bytes)
+	INPNT	pointer within input buffer
+	INCNT	input buffer byte count
+	INBLK	input block number for next READ
+	OUBUF	(corresponding locs for output)
+	OUSIZ
+	OUPNT
+	OUCNT
+	OUBLK
+
+(required by IO):
+
+	PNAME	Ascii string (terminated by <200>) of programme name for error
+		messages on input and output error.  Eg:
+		PNAME::	.ascii	/Prognam/<200>
+		produces an error message in the form
+		?Prognam-F-Input Error #1
+		should a hardware error occur on the input channel.
+
+	DEFEXT	four-word block of radix50 default file extensions for CSIGEN
+
+	VERMES	asciz string for printing version on null command
+		(PNAME is printed first)
+.ENDC
+
+; These lines and the macros may be useful for programmes
+
+.GLOBL	IOSET,IOSETX,IOSETS,IOCHK,INB,OUB,OUCLR,OUS
+.GLOBL	INFIL,OUFIL,IOERB,LIMIT,HLIMIT,INBUF,INSIZ,INPNT,INCNT,INBLK
+.GLOBL	OUBUF,OUSIZ,OUPNT,OUCNT,OUBLK,PNAME,DEFEXT,VERMES
+
+.MACRO	OUTB	A
+	.IF NB A
+	MOV	A,R0
+	.ENDC
+	JSR	PC,OUB
+.ENDM
+
+.MACRO	OUTS	A
+	.IF NB A
+	MOV	A,R0
+	.ENDC
+	JSR	PC,OUS
+.ENDM
+
+
+.MCALL	.SRESET,.CSIGEN,.SETTOP,.PRINT,.READW,.WRITW,.WAIT,.TTYOU
+
+CR=15
+LF=12
+
+ERRBYT=52
+.PAGE
+; **** IOSET - Initialize I/O
+
+IOSET::
+	.SRESET
+	MOV	LIMIT+2,HLIMIT
+IOSETX::
+IOSET1:
+	MOV	SP,R1		;No switches supported at present
+	.CSIGEN	HLIMIT,#DEFEXT
+	MOV	R1,SP
+IOSETS::
+	MOV	R0,R1		;Save new high limit after handlers loaded
+	MOV	R0,R2		;Also for pointer to first buffer
+
+	JSR	PC,IOCHK	;Check for I/O files
+	BCS	IOSET1		;If none, try again.
+
+	.SETTOP	#-2
+	TST	(R0)+		;One word past last loc in use
+	SUB	R1,R0		;Number of bytes available
+	MOV	R0,R1
+	BIC	#1777,R0	;Round to multiples of 2*1000 bytes
+	BNE	5$
+	  SEC			;If no room, CS return
+	  RTS	PC
+5$:	CLC
+	ROR	R0		;Halve for 1 buffer
+	MOV	R0,INSIZ	;And store for reference
+	SUB	R0,R1		;Remainder of space for other buffer
+	BIC	#777,R1		;Multiple of 1000 bytes
+	MOV	R1,OUSIZ
+
+	MOV	R2,INBUF	;Pointer to start of input buffer
+	ADD	R0,R2		;Add size to point to start of output buffer
+	MOV	R2,OUBUF
+	ADD	R1,R2		;Then point to first free
+	TST	-(R2)		;To last used
+	.SETTOP	R2		;Keep tidy in case he uses it
+	TST	(R0)+
+	MOV	R0,HLIMIT
+
+	MOVB	#3,READ		;Initial input channel
+	CLR	IOERB		;Error byte goes here
+	CLR	INBLK
+	CLR	INCNT
+	CLR	OUBLK
+	MOV	OUBUF,OUPNT	;Set up ready for first output
+	MOV	OUSIZ,OUCNT
+	RTS	PC
+
+
+; **** IOCHK - Check for input & output files having been specified
+
+IOCHK:
+	CLR	FILES		;Clear INFIL & OUFIL
+	.WAIT	#0
+	BCS	10$		;No output file
+	INCB	OUFIL
+10$:	.WAIT	#3
+	BCS	20$		;No input file
+	INCB	INFIL
+20$:
+	TST	FILES		;Any file specified?
+	BNE	GOGOOD		;Carry clear return
+	.PRINT	#PNAME
+	.TTYOU	#40
+	.PRINT	#VERMES
+	SEC
+	RTS	PC
+.PAGE
+; **** INB - Read an input byte into R0
+
+	.ENABL	LSB
+INB::
+	TST	INCNT		;Any more?
+	BNE	10$		;Yes.
+5$:
+	CLRB	@#ERRBYT	;In case don't actually use .READ
+	MOV	INSIZ,R0	;Calculate word count for buffer
+	CLC
+	ROR	R0		;Bytes to words
+	MOV	R0,INWCT
+	TSTB	INFIL		;Is there an input file?
+	BEQ	RDER		;No - CS return
+	MOV	#READ,R0
+	.READW
+	BCS	RDER
+	ROL	R0		;Words read to bytes
+	MOV	R0,INCNT
+	SWAB	R0		;Calculate number of blocks read
+	BIC	#177400,R0	;Just in case
+	ASR	R0
+	ADD	R0,INBLK	;And add in to current position in file.
+	MOV	INBUF,INPNT	;Reset pointer
+10$:
+	DEC	INCNT
+	MOVB	@INPNT,R0
+	INC	INPNT
+	BR	GOGOOD
+RDER:
+	CMPB	@#ERRBYT,#1	;If hard error, prang him.  Ignore EOF, or
+	BEQ	RDHER		; channel not in use.
+	CLR	INBLK		;Back to block 0
+	INCB	READ		;Next channel
+	CMPB	READ,#10	;See if used all up.
+	BLOS	5$
+	CLRB	@#ERRBYT
+RDHER:
+	CLRB	INFIL		;So doesn't try again
+	MOVB	@#ERRBYT,IOERB
+	BEQ	GOBAD
+	.TTYOU	#'?
+	.PRINT	#PNAME
+	.PRINT	#RDER.
+	BR	GOBAD
+
+	.PSECT	MESAGE	CON
+RDER.:	.ASCII	/-F-Input Error./<200>
+	.PSECT
+
+	.DSABL	LSB
+.PAGE
+; **** OUB - Send byte in R0 to output file
+
+OUB::
+	TSTB	OUFIL		;Make sure there is an output file.
+	BEQ	GOBAD
+	MOVB	R0,@OUPNT
+	INC	OUPNT
+	DEC	OUCNT
+	BLE	OUX
+	BR	GOGOOD
+OUX:				;Extra routine for sending current buffer
+	MOV	R0,-(SP)	;Don't change his argument
+	CLRB	@#ERRBYT	;In case don't actually .WRITE
+	TSTB	OUFIL		;See if there is an output file
+	BEQ	GOBAD		;Whoops.
+	MOV	OUSIZ,R0	;Actually calculate word count in case not full
+	SUB	OUCNT,R0
+	CLC
+	ROR	R0
+	BEQ	10$		;Don't write if there's nothing to write.
+	MOV	R0,OUWCT
+	MOV	#WRITE,R0
+	.WRITW
+	BCS	WRER
+
+	SWAB	R0		;Calculate # blocks written
+	ADD	R0,OUBLK	; and reset OUBLK accordingly.
+10$:	MOV	OUBUF,OUPNT
+	MOV	OUSIZ,OUCNT
+	MOV	(SP)+,R0
+GOGOOD:	CLC
+	RTS	PC
+WRER:
+	CLRB	OUFIL
+	MOVB	@#ERRBYT,IOERB
+	.TTYOU	#'?
+	.PRINT	#PNAME
+	MOV	#60,R0
+	ADD	IOERB,R0	;Set up to type error code.
+	MOVB	R0,ER.
+	.PRINT	#WRER.
+	MOV	(SP)+,R0
+GOBAD:	SEC
+	RTS	PC
+
+	.PSECT	MESAGE
+WRER.:	.ASCII	/-F-Output Error #/
+ER.:	.BYTE	0,0
+	.PSECT
+
+; **** OUCLR - Send whatever output is ready, to the end of a 256. word block
+
+OUCLR::
+	CLR	R0		;To null fill
+	BIT	#777,OUCNT	;Test for block boundary
+	BEQ	OUX
+	JSR	PC,OUB
+	BR	OUCLR
+.PAGE
+; **** OUS - Send string to output file
+
+OUS:
+	MOV	R0,-(SP)	;Don't bugger his arguments
+	MOV	R1,-(SP)
+
+	MOV	R0,R1
+10$:
+	MOVB	(R1)+,R0
+	BEQ	20$
+	BIC	#177600,R0	;Check for null or <200> terminator
+	BEQ	30$
+	OUTB
+	BCS	40$		;Return CS if get it back from OUB
+	BR	10$
+20$:
+	OUTB	#CR
+	OUTB	#LF
+30$:
+	CLC
+	BR	50$
+40$:
+	SEC
+50$:
+	MOV	(SP)+,R1
+	MOV	(SP)+,R0
+	RTS	PC
+.PAGE
+.SBTTL	Data Area
+
+LIMIT::	.LIMIT			;For monitor-defined limits
+HLIMIT::0			;For user-defined limits
+
+IOERB::	0			;For contents of @#ERRBYT
+
+FILES:				;For access as a word
+INFIL::	.BYTE	0		;Non zero if input file specified
+OUFIL::	.BYTE	0		;ibid, output file
+
+;Read & Write Blocks:
+
+READ:	.BYTE	3,10		;Channel, READ request
+INBLK::	0			;Input block #
+INBUF::	0			;Pointer to Input Buffer
+INWCT:	0			;Input word count
+	0			;To make it .readW
+
+INSIZ::	0			;Size in bytes of input buffer
+INPNT::	0			;Pointer within input buffer
+INCNT::	0			;Count of remaining bytes
+
+WRITE:	.BYTE	0,11
+OUBLK::	0
+OUBUF::	0
+OUWCT:	0
+	0
+
+OUSIZ::	0
+OUPNT::	0
+OUCNT::	0
+
+.END

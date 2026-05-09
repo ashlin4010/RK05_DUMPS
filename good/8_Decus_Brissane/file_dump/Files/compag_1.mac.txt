@@ -1,0 +1,644 @@
+.TITLE COMPAG - For Combining Pages for Printer Output
+.NLIST	BEX,TOC
+.ENABL	LC
+
+.SBTTL	V4A	24-Aug-81
+
+	.PSECT
+	.PSECT	MESAGE	CON
+DEFEXT::.RAD50	/DOCLST      /
+PNAME::	.ASCII	/Compag/<200>
+VERMES::.ASCIZ	/V4A/
+	.PSECT
+
+		.If eq 1
+Author:	C G Wilson, 71 Galatea St, Charleville 4470, Australia.
+
+Purpose: To allow combining of printed matter into a format suitable for
+	printing in multiple columns of a printed page - eg manuals,
+	other documentation.
+
+V1B:	Allow single underscores as chars rather than overprints
+26-Apr-80
+
+V2:	Include /T switch for VT100 terminals; allow for lack of a KEV11
+8-May-80	Assembly for non-KEV11 systems: Assemble file as is.
+		Assembly for KEV11 systems:	Assemble with KEV11 defined.
+
+V3:	Use tabs rather than multiple spaces where possible in the output
+17-May-81	file.  Allow /F for full output with no tabs if desired.
+
+V4:	Add /J switch; bug fix.
+14-Aug-81
+
+V4A:	Remove SOB instructions
+24-Aug-81
+		.Endc
+
+.MCALL	.CSIGEN,.SRESET,.SETTOP,.EXIT,.CLOSE,.PRINT,.RCTRLO
+
+.MACRO	TYPE	A
+	.PSECT	MESAGE	CON
+	$$$=.
+	.ASCII	A
+	.PSECT
+	.PRINT	#$$$
+.ENDM
+
+;Globals for IO.OBJ
+.GLOBL	IOSET,IOSETX,IOSETS,IOCHK,INB,OUB,OUCLR,OUS
+.GLOBL	INFIL,OUFIL,IOERB,LIMIT,HLIMIT,INBUF,INSIZ,INPNT,INCNT,INBLK
+.GLOBL	OUBUF,OUSIZ,OUPNT,OUCNT,OUBLK,PNAME,DEFEXT,VERMES
+
+CR=15
+LF=12
+FF=14
+BS=10
+TAB=11
+ESC=33
+USC=137		;Underscore
+
+START:
+	MOV	#START,SP	;In case of restarts.
+	.SRESET
+	.RCTRLO
+	.SETTOP	LIMIT+2
+	.CSIGEN	LIMIT+2,#DEFEXT
+	MOV	R0,BUFPNT	;Put buffer above handlers
+
+;Parameter initialization
+;------------------------
+
+	MOV	#132.,WIDTH	;Set up initial parameters
+	MOV	#60.,LENGTH
+	CLRB	SCRALL
+	CLRB	SCRNON
+	CLR	MARPNT
+	MOV	#MTXEND,MTXPNT
+	CLR	MTXCNT
+	CLR	TABCON		;Default is tab conversion
+	CLR	JOINER		; and <ff> between pages.
+
+;Switch decoding
+;---------------
+
+	MOV	(SP)+,R4	;Number of switches
+	BEQ	GO
+NEXSWT:
+	MOV	(SP)+,R1	;Actual switch
+	BGE	10$
+	MOV	(SP)+,R2	;Value if any.
+10$:
+	BIC	#40,R1		;Allow upper & lower case switches
+	CMPB	R1,#'H		;/H - HELP
+	BNE	20$
+	.PRINT	#HMES
+	BR	START
+20$:
+	CMPB	R1,#'W		;/W - WIDTH.  (If no value, change to 120)
+	BNE	30$
+	MOV	#120.,WIDTH
+	TST	R1
+	BGE	ENDSWT
+	MOV	R2,WIDTH
+	BR	ENDSWT
+30$:
+	CMPB	R1,#'P		;/P - PAGE LENGTH (If no value, change to 46)
+	BNE	40$
+	MOV	#46.,LENGTH
+	TST	R1
+	BGE	ENDSWT
+	MOV	R2,LENGTH
+	BR	ENDSWT
+40$:
+	CMPB	R1,#'B		;/B - IGNORE LEADING BLANK LINES
+	BNE	50$
+	DECB	SCRALL
+	BR	ENDSWT
+50$:
+	CMPB	R1,#'N		;/N - IGNORE NO LEADING BLANK LINES
+	BNE	60$
+	DECB	SCRNON
+	BR	ENDSWT
+60$:
+	CMPB	R1,#'C		;/C - NUMBER OF COLUMNS
+	BNE	70$
+	TST	R1
+	BGE	ENDSWT		;Ignore if no value
+	CMP	R2,#8.		;Maximum is 8
+	BHI	ILLSWT
+	MOV	R2,MARPNT
+	BEQ	ILLSWT
+	BR	ENDSWT
+70$:
+	CMPB	R1,#'L		;/L - LIST OF LEFT MARGINS
+	BNE	80$
+	TST	R1
+	BGE	ENDSWT
+	SUB	#2,MTXPNT
+	MOV	R2,@MTXPNT
+	INC	MTXCNT
+	BR	ENDSWT
+80$:
+	CMPB	R1,#'F		;/F - FORCE FULL OUTPUT (No tab conversion)
+	BNE	90$
+	INC	TABCON
+	BR	ENDSWT
+90$:
+	CMPB	R1,#'T		;/T - SET TT 132 WHILST PROCESSING
+	BNE	100$
+	MOVB	#ESC,TT80
+	.RCTRLO
+	.PRINT	#TT132
+	BR	ENDSWT
+100$:
+	CMPB	R1,#'J		;/J - JOIN PAGES (NO <FF> BETWEEN)
+	BNE	ILLSWT
+	INC	JOINER
+ENDSWT:
+	DEC	R4
+	BLE	GO
+	JMP	NEXSWT
+
+ILLSWT:
+	.PRINT	#ILS
+	JMP	START
+
+.PSECT	MESAGE	CON
+
+ILS:	.ASCII	/?Compag-F-Illegal Switch or value./<cr><lf>
+	.ASCII	# Type /H for help.#<0>
+
+HMES:
+.ASCII	#/W:n	Page width (default 132, 120 if n not specified).#<cr><lf>
+.ASCII	#/P:n	Page length (default 60, 46 if n not specified).#<cr><lf>
+.ASCII	#/B	Ignore all leading blank lines on any page.#<cr><lf>
+.ASCII	#/N	Include all leading blank lines -#<cr><lf>
+.ASCII	#	(Usually any single leading blank line is ignored.)#<cr><lf>
+.ASCII	#/T	Set user's terminal (assuming a VT100) to 132-column#<cr><lf>
+.ASCII	#	mode before processing, and to 80-column mode after.#<cr><lf>
+.ASCII	#/C:n	Set up output in n columns (1 to 8).#<cr><lf>
+.ASCII	#/L:n:n:...	Use the values specified as a string of left#<cr><lf>
+.ASCII	#	margin values for output format.  (Takes precedence#<cr><lf>
+.ASCII	#	over any /C specified).#<cr><lf>
+.ASCII	#/F	Force full output (no tab conversion).#<cr><lf>
+.ASCII	#/J	Join pages without <ff> between.#<0>
+
+.PSECT
+
+.SBTTL	Determine Left Margins for Columns
+
+	.PSECT	MESAGE	CON
+GAPTAB:	.BYTE	0,12.,10.,8.,8.,6,6,6	;Gaps between columns on output
+	.PSECT
+
+GO:
+	MOV	MTXCNT,R4	;See if any /L specified
+	BEQ	20$		;No.
+
+	MOV	#MARTAB,R3	;Position for table finally (comes backwards)
+	MOV	MTXPNT,R2
+10$:	MOV	(R2)+,(R3)+
+	DEC	R4
+	BNE	10$
+	BR	40$
+
+20$:
+	MOV	MARPNT,R4	;Number of columns
+	BNE	25$
+	MOV	#2,R4
+25$:
+	MOVB	GAPTAB-1(R4),R3	;Spacing between columns depends upon number
+	MOV	R3,R0		;Hold for calculating left margins
+	MOV	R4,R1		;Number of columns again
+	DEC	R1		;Number of spacings is one less than columns
+.IF DF KEV11
+	MUL	R1,R3		;Spaces taken up with spacings
+.IFF
+	CALL	$MUL
+	MOV	R1,R3
+.ENDC
+	SUB	WIDTH,R3	;Remainder of space available for text
+	NEG	R3
+.IF DF KEV11
+	CLR	R2		;(For divide, high order word)
+	DIV	R4,R2		;Number of places per column
+	ADD	R0,R2		;Number of places in 1 column + 1 spacing
+.IFF
+	MOV	R0,-(SP)
+	MOV	R3,R0		;(dividend)
+	MOV	R4,R1
+	CALL	$DIV
+	MOV	R0,R2
+	ADD	(SP)+,R2
+.ENDC
+	CLR	R0		;Initial left margin = 0
+	MOV	#MARTAB,R3
+30$:
+	MOV	R0,(R3)+
+	ADD	R2,R0
+	DEC	R4		;Set up left margins
+	BNE	30$
+40$:
+	MOV	#-1,(R3)	;Table terminated by -1.
+
+
+
+.SBTTL	Set up buffer space
+
+	MOV	WIDTH,R0
+.IF DF KEV11
+	MUL	LENGTH,R0
+.IFF
+	MOV	LENGTH,R1
+	CALL	$MUL
+.ENDC
+	MOV	R1,PAGLEN
+	ADD	BUFPNT,R1
+	MOV	R1,HLIMIT	;End of page - for IO to use for buffers.
+
+	CALL	IOCHK		;See if input & output files.
+	BCC	45$
+	  JMP	START		;No.
+45$:
+	TSTB	INFIL		;See if BOTH input & output files.
+	BEQ	50$
+	TSTB	OUFIL
+	BNE	60$
+50$:	JMP	NOFIL
+
+60$:
+	MOV	HLIMIT,R0	;Go and set up buffers etc
+	CALL	IOSETS
+	BCC	70$
+	  JMP	NOMEM
+70$:
+
+.SBTTL	Initialize a new page
+
+NEWPAG:
+	MOV	BUFPNT,R1	;Set initially to nulls
+	MOV	PAGLEN,R2
+	CLC
+	ROR	R2		;Bytes to words in page buffer.
+10$:	CLR	(R1)+
+	DEC	R2
+	BNE	10$
+
+	MOV	#MARTAB,MARPNT
+
+;New section within a page
+
+NEWSEC:
+	MOV	@MARPNT,LMARG	;Reset left margin for this section
+	BLT	SENPAG		;If negative, end of this page.
+	ADD	#2,MARPNT
+	MOV	LMARG,HPOS
+	CLR	VPOS		;Reset vertical & horizontal positions.
+	CLR	BLANK		;Flag for blank section of page
+
+	TSTB	SCRNON		;Including all blank lines? (/N switch).
+	BNE	20$		;Possibly.  Check for /B switch.
+5$:
+	CALL	IN		;Get (filtered) character
+	CMP	R0,#CR		;Ignore leading CR-LF
+	BNE	10$
+	CALL	IN
+10$:
+	CMP	R0,#LF		;Ignore leading LF or FF
+	BNE	CHL1
+20$:
+	TSTB	SCRALL		;Ignoring all leading blank lines?
+	BNE	5$		;Yes.
+
+.SBTTL	Looping on input characters:
+
+CHLOOP:
+	CALL	IN
+CHL1:
+	CMP	R0,#CR		;Carriage return - resets to left margin
+	BNE	10$
+	MOV	LMARG,HPOS
+	BR	CHLOOP
+10$:
+	CMP	R0,#LF		;Line feed - moves to next line
+	BNE	20$
+	INC	VPOS
+	CMP	VPOS,LENGTH	;If at bottom, next section
+	BGE	ENDSEC
+	BR	CHLOOP
+20$:
+	CMP	R0,#BS		;Backspace - move 1 place backwards
+	BNE	30$
+	CMP	HPOS,LMARG	;Don't go back past left margin
+	BLE	CHLOOP
+	DEC	HPOS
+	BR	CHLOOP
+30$:
+	CMP	R0,#FF		;Form feed - new section
+	BEQ	ENDSEC
+
+	CMP	R0,#TAB		;Tab - move to corresponding tab position
+	BNE	40$		; within section (not necessarily within page)
+	MOV	HPOS,R1
+	SUB	LMARG,R1
+	ADD	#8.,R1
+	BIC	#7,R1
+	ADD	LMARG,R1
+	MOV	R1,HPOS
+	BR	CHLOOP
+40$:
+	CMP	R0,#USC		;Underscore - recorded by setting MSB of char
+	BNE	50$
+	MOV	VPOS,R1
+.IF DF KEV11
+	MUL	WIDTH,R1
+.IFF
+	MOV	WIDTH,R0
+	CALL	$MUL
+.ENDC
+	ADD	HPOS,R1
+	ADD	BUFPNT,R1
+	BISB	#200,(R1)
+	BR	70$
+50$:
+	TST	R0		;If space, don't put into buffer.
+	BEQ	70$
+	MOV	VPOS,R1		;Printing character - put into place
+.IF DF KEV11
+	MUL	WIDTH,R1
+.IFF
+	MOV	R0,-(SP)
+	MOV	WIDTH,R0
+	CALL	$MUL
+	MOV	(SP)+,R0
+.ENDC
+	ADD	HPOS,R1
+	ADD	BUFPNT,R1
+	TSTB	(R1)		;See if underscore already there
+	BGE	60$
+	BIS	#200,R0		;Yes - keep it there.
+60$:	MOVB	R0,(R1)
+70$:	INC	HPOS
+	INC	BLANK		;Show this portion of the page isn't blank.
+	BR	CHLOOP
+
+
+ENDSEC:
+	TST	BLANK		;If blank, use this section again
+	BNE	NEWSEC
+	SUB	#2,MARPNT
+	BR	NEWSEC
+
+.SBTTL	Send a page when complete
+
+SENPAG:
+	CLR	PAGIO		;Flag for any output from this page
+	CLR	NLCNT		;Counter of null lines (in case no more on page)
+	MOV	BUFPNT,R5	;Pointer to start of current line
+	MOV	LENGTH,R4	;Number of lines left to process
+SNP:
+	MOV	R5,R3		;Start of this line
+	ADD	WIDTH,R3	;Start of next line
+10$:
+	TSTB	-(R3)		;Search backwards for last char in line
+	BNE	20$
+	CMP	R3,R5		;Check for right back to start = null line
+	BNE	10$
+
+	INC	NLCNT		;Null line - just increment count
+	BR	NEXSLN
+20$:
+	INC	PAGIO		;Signal some output this page
+	MOV	#LF,R0		;Non-null line.  If null lines before, print
+	TST	NLCNT		; them.
+30$:
+	BLE	40$
+	CALL	OUB
+	DEC	NLCNT
+	BR	30$
+40$:
+	MOV	R5,R2		;CONVERT NULLS TO SPACES
+50$:
+	CMP	R2,R3
+	BHI	80$
+	CMPB	(R2),#200	;Convert underscored nulls also
+	BEQ	60$
+	TSTB	(R2)
+	BNE	70$
+60$:	BISB	#40,(R2)
+70$:	INC	R2
+	BR	50$
+80$:
+	TST	TABCON		;CONVERT MULTIPLE SPACES TO TABS
+	BNE	110$		; (Unless requested not to)
+
+	MOV	R5,R2
+90$:
+	MOV	R2,R0		;Save to check we don't go back before field
+	ADD	#8.,R2		;Tab stops every 8 places.
+	CMP	R2,R3
+	BHI	110$
+	CMPB	-1(R2),#40	;Check for at least two spaces for adventage
+	BNE	90$		; in terms of file space.  Don't convert
+	CMPB	-2(R2),#40	; underscored spaces (lazy bugger ain't I?)
+	BNE	90$
+
+	MOV	R2,R1
+	MOV	#TAB,-(R1)	;TAB in last place
+100$:
+	CMPB	-(R1),#40	;And make any preceding spaces null.
+	BNE	90$
+	CLRB	(R1)
+	CMP	R0,R1		;If hit beginning of field, quit
+	BEQ	90$
+	BR	100$
+110$:				;CHECK FOR UNDERSCORED CHARACTERS AND PRINT LINE
+	CLR	UNDSCR		;Clear underscore flag for this line
+	MOV	R5,R1
+120$:
+	MOVB	(R1)+,R0	;Look at next character
+	CMPB	R0,#240		;See if naked underscore
+	BNE	130$
+	MOV	#USC,R0		;If so, don't bother with overprinting it
+	MOVB	R0,-1(R1)	;and don't re-do when actually require o/print
+	BR	150$
+130$:
+	BLO	140$		;If less than 200, not underlined.
+	MOV	R1,UNDSCR	;Point to last underscored character
+140$:
+	BIC	#177600,R0
+	BEQ	150$		;Ignore nulls
+	CALL	OUB
+150$:
+	CMP	R1,R3		;Up to end of line?
+	BLOS	120$
+
+	MOV	#CR,R0		;Yes - append carriage-return.
+	CALL	OUB
+
+	MOV	UNDSCR,R3	;Test for underscoring
+	BEQ	180$		;None.
+
+	MOV	R5,R1		;Underscoring - process line again.
+160$:
+	MOV	#40,R0		;Space unless underscoring
+	TSTB	(R1)+
+	BGE	170$
+	MOV	#USC,R0
+170$:	CALL	OUB
+
+	CMP	R1,R3
+	BLO	160$
+
+	MOV	#CR,R0
+	CALL	OUB
+180$:
+	MOV	#LF,R0
+	CALL	OUB
+NEXSLN:
+	DEC	R4		;Any more lines left to process?
+	BLE	10$
+	ADD	WIDTH,R5
+	BR	SNP		;Yes - move on to next.
+10$:
+	TST	JOINER		;Want <ff> after page?
+	BNE	15$		; No.
+	TST	PAGIO		;Any output this page?
+	BEQ	15$		;No - forget form feed.
+	MOV	#FF,R0		;Yes - append a form-feed
+	CALL	OUB
+15$:
+	CLR	NLCNT		;Scrub any waiting null lines
+	TSTB	INFIL		;Any more input file?
+	BEQ	20$
+	JMP	NEWPAG		;Yes - go & process it.
+20$:
+	CALL	OUCLR		;No - finish the current output file
+	TSTB	TT80		;Want screen reset?
+	BEQ	30$
+	.RCTRLO
+	.PRINT	#TT80
+	CLRB	TT80
+30$:	.CLOSE	#0
+	JMP	START
+
+.SBTTL	IN - Return Filtered Input Character
+
+IN:
+	CALL	INB
+	BCC	10$
+	  JMP	SENPAG		;End of file return
+10$:
+	CMP	R0,#177		;Scrub rubouts
+	BEQ	IN
+
+	CMP	R0,#40		;Scrub all but a handful of controls
+	BGT	30$
+	BNE	20$
+	CLR	R0		;Return spaces as nulls so trailing blanks
+	RETURN			; algorithm works ok.
+20$:
+	CMP	R0,#CR
+	BEQ	30$
+	CMP	R0,#LF
+	BEQ	30$
+	CMP	R0,#FF
+	BEQ	30$
+	CMP	R0,#BS
+	BEQ	30$
+	CMP	R0,#TAB
+	BNE	IN
+30$:	RETURN
+
+.SBTTL	Error Routines
+
+NOMEM:
+	TYPE	</?Compag-F-Insufficient Memory/<200>>
+	.EXIT
+NOFIL:
+	TYPE	</?Compag-F-Both Input & Output Files Required/<0>>
+	JMP	START
+
+.SBTTL	Data Area
+
+BUFPNT:	0		;Pointer to page buffer
+VPOS:	0		;Vertical Position
+HPOS:	0		;Horizontal Position
+WIDTH:	0		;Page width
+LENGTH:	0		;Page length
+PAGLEN:	0		;Number of bytes in page
+LMARG:	0		;Left margin for this section of page
+
+MARPNT:	0		;Pointer to left margin table
+MARTAB:	.BLKW	10.	;Table of left margins
+MTXPNT:	0		;Pointer to /L margin table
+MTXCNT:	0
+MTXTB:	.BLKW	12.
+MTXEND:
+
+UNDSCR:	0		;Flag for underscore checking
+SCRALL:	.BYTE	0	;Flag for ignoring all leading line feeds
+SCRNON:	.BYTE	0	;Flag for including all leading line-feeds
+NLCNT:	0		;Counter of null lines on output
+
+BLANK:	0		;Flag for indicating blank page sections.
+
+TABCON:	0		;Flag for inhibiting tab conversion
+PAGIO:	0		;Flag for null page output
+JOINER:	0		;Flag to inhibit <ff> between pages
+	.PSECT	MESAGE
+TT132:	.ASCII	<Esc>/[?3h/<200>
+TT80:	.ASCII	<0>/[?3l/<200>
+	.PSECT
+
+.SBTTL	$MUL & $DIV (Modified from ANU routines)
+.IF NDF KEV11
+
+; **** $MUL ****
+;	In:	R0	multiplicand
+;		R1	multiplier
+;	Out:	R0	multiplicand
+;		R1	result
+
+$MUL::
+	MOV	R0,-(SP)	;Save multiplicand
+	CLR	-(SP)		;For single-precision result
+10$:
+	CLC
+	ROR	R1		;Look at next bit in multiplier
+	BCC	20$
+	ADD	R0,(SP)		;If not zero, add in next to result
+	CLC
+20$:	ROL	R0
+	TST	R1
+	BNE	10$
+
+	MOV	(SP)+,R1	;Result into R1
+	MOV	(SP)+,R0	;and restore multiplicand
+	RETURN
+
+;$DIV - Inputs	R0 dividend
+;		R1 divisor
+
+;	Outputs R0 quotient
+;		R1 remainder
+
+$DIV::
+	MOV	#16.,-(SP)	;Iteration count - 16 bits
+	MOV	R1,-(SP)	;Save divisor for subtractions
+	CLR	R1
+10$:
+	ASL	R0		;Double left shift
+	ROL	R1
+	CMP	R1,(SP)
+	BLO	20$
+	SUB	(SP),R1		;Subtract if relevant, and
+	INC	R0		; add in to quotient
+20$:
+	DEC	2(SP)
+	BGT	10$
+	CMP	(SP)+,(SP)+
+	RETURN
+.ENDC
+.END	START

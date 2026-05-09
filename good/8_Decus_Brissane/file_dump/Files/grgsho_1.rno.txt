@@ -1,0 +1,189 @@
+.comment - prototype Lab Report - edit 16-Jan-81 - G. R. Grinton
+^^
+.nnm
+.nhy
+.ap
+.p 0,1,t
+.nf
+State Electricity Commission of Victoria
+Research and Development Department
+.s
+Herman Research Laboratory,
+Howard Street, Richmond,
+Victoria 3121, Australia.
+.s
+Telephone: 03 429 1511 X492
+.s 5
+.c;  LABORATORY  REPORT
+.s
+.comment - insert report number here (twice)
+.title LS/81/123
+                                               No: LS/81/123
+.s
+.comment - insert date of report here
+                                             Date: 23-Jun-81
+.s 5
+.c;  ***********************************
+.c;  *                                 *
+.c;  *                                 *
+.c;  *              SHOW               *
+.c;  *                                 *
+.comment - insert title here
+.c;  *      ANOTHER FILE LISTING       *
+.c;  *      PROGRAM FOR RSX-11M        *
+.c;  *                                 *
+.c;  *                                 *
+.c;  ***********************************
+.s 4
+Subject:
+.s 4
+.f
+.comment - insert summary and introduction here
+This report describes a file-listing program for the RSX-11M
+computer system.
+A user with a video terminal is able to use single-character
+commands to scroll forwards and backwards through a file.
+.s 4
+.nf
+                                Signed:   Geoffrey R Grinton
+                                          Scientific Officer
+.pg
+ 
+.s 30
+.comment - insert job details here
+Submitted by:             Name:     G. R. Grinton
+                          Section:  Engineering Systems
+                          Phone:    492
+ 
+Accepted by:              Name:     G. R. Grinton
+                          Section:  Engineering Systems
+ 
+                          On:       11-May-81
+ 
+Activity Number: 922509
+ 
+Remarks:
+ 
+.comment - insert RSX-11 file name here
+File: [110,31]LS81123.RNO
+ 
+.f
+.nm 0
+.pg
+.hl 1 INTRODUCTION
+Program SHOW is a bi-directional file-listing program.
+It operates with the RSX-11M computer system and a VT100
+terminal, and allows a user to inspect a text file.
+Unlike conventional listing programs, it provides a facility by
+which the user can reverse the listing direction, so that the
+text on the screen appears to scroll downwards, back towards the
+start of the file.
+
+Several single-character commands are used to control the
+program.
+.hl 1 USING SHOW
+The utility may be invoked by any of the standard RSX methods.
+The task file resides in the [2,54] library, and is usually
+installed with task name '...SHO'.
+
+Any of the following commands may be used:
+.s
+.lm +5
+.nf
+SHOW
+
+SHOW file-name
+
+RUN ...SHO
+
+RUN LB:[2,54]SHO
+.S
+.LM 0
+.f
+If the user does not provide a file name the program prompts the
+user for one.
+The default extent for the file name is '.MAC'.
+.hl 1 COMMANDS
+Once the program starts the user can control its operation with a
+number of single-key commands.
+These are described in the following paragraphs.
+.ls
+.le [up-arrow], [down-arrow]
+.br
+These keys are used to change the scrolling direction.
+.le CTRL/Z
+.br
+This key combination is used to exit from the program.
+.le 'S', 'F'
+.br
+These keys are used to select slow (S) or fast (F) scrolling.
+Because of terminal restrictions there is a pause of
+approximately half a second whenever a change of scroll speed is
+requested.
+If the display has been halted (see below), use of either of
+these keys will start scrolling again in the direction last
+selected.
+.le 'L', 'D'
+.br
+These keys allow the user to select the background colour of the
+screen.
+The options are light (L) and dark (D).
+.le 'N', 'W'
+.br
+These keys are used to set the screen width to 80 columns (N, for
+narrow) or to 132 columns (W, for wide).
+Whenever either of these keys is used the screen is cleared.
+.le Numeric keys '0' .. '9'
+.br
+Thes keys may be used to slow the scroll rate of the display.
+Higher numbers correspond to slower displays, with a maximum delay
+of approximately one second per line for '9'.
+Pressing '0' cancels the delay and resumes full-speed operation.
+Note that the use of the slow-scroll mode over-rides the delay
+introduced by numbers less than 5.
+.le Any other key
+.br
+If the user presses any other key the display is halted.
+To resume scrolling the user may use either of the arrow keys or
+the fast or slow scroll speed keys.
+.els
+The bottom line of the screen is reserved for a status display
+line.
+The information displayed includes the file name and version, the
+line numbers of the first and last lines displayed on the screen,
+and an indicator to show if the beginning or end of the file
+has been detected.
+.hl 1 RESTRICTIONS
+There are some minor restrictions imposed by the program.
+These are discussed below.
+.ls
+.le The program assumes that files to be listed have normal
+variable length records and that the 'FD.CR' characteristic is
+set in the file header.
+Certain programs create files which do not have this
+characteristic, and the result of SHOWing such files is not
+always predictable.
+.le The program uses a special symbol to represent form-feed
+characters found in the file.
+However, if a form-feed character is not the first character of
+a line the program will not detect it properly, but will send
+eight line-feeds to the terminal.
+This will result in an incorrect status display line, and may
+cause some lines not to be displayed if the scroll direction is
+reversed.
+(This restriction is relevant if listing files generated by MAC
+are displayed.)
+.le The program uses an internal buffer for line pointers.
+The version of the program currently in use has buffer space for
+1000 lines only; if the user attempts to display a file with more
+lines the program will halt after displaying the first 1000
+lines, and the message 'Buffer overflow' will be displayed.
+.le Because of overheads associated with file handling and the
+maintenance of the status line the program does not display files
+at the full speed capability of the terminal.
+.els
+.s 5
+G.#R.#Grinton
+.br
+.comment - Insert report edit date here
+23-Jun-81

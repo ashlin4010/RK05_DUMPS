@@ -1,0 +1,26 @@
+.; LINK command processor     G.Grinton     V1.3
+.;
+	.ENABLE SUBSTITUTION
+.;
+.; If he did not specify a file name, ask him
+	.IF P2 NE "" .GOTO L2
+.;
+.AFL:	.ASKS P2 File(s)
+	.IF P2 EQ "" .GOTO AFL
+.;
+.; Split off first file name in case he used commas
+.L2:	.PARSE P2 "," TSK OBJ
+.;
+.; See if he used the /DE switch on the command
+	.PARSE P1 "/" CMD O1
+	.SETS ODT ""
+	.SETS MAP ""
+	.IF O1 NE "DE" .GOTO L1
+	.SETS ODT "/DA"
+	.SETS MAP TSK+"/-SP"
+.;
+.; Delete old .TSK then build it
+.L1:	PIP 'TSK'.TSK;*/DE/NM
+	TKB 'TSK''ODT'/CP,'MAP'='TSK','OBJ','P3','P4','P5','P6',LB:[1,1]SECLIB/LB
+.;
+	.ENABLE QUIET

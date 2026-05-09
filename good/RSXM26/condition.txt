@@ -1,0 +1,28 @@
+Looks good, small dings but should read ok
+
+7.5/10
+
+
+DIRECTORY DK0:[200,200]
+26-AUG-85 14:33
+
+MAPDKSET.CMD;1      1.         26-MAY-79 14:37
+SGNBLDDRV.CMD;1     14.        31-MAY-79 14:44
+SYSSAVED.CMD;1      5.         24-AUG-85 13:46
+SGNPARM.CMD;2       3.         24-AUG-85 14:35
+UNMDKSET.CMD;1      1.         26-MAY-79 14:37
+COPYNEW.CMD;1       1.         26-AUG-85 15:38
+SYSGEN2.CMD;2       75.        13-MAY-85 02:21
+RECEV.MAC;1         34.        13-MAY-85 02:59
+SYSTB.MAC;3         39.        24-AUG-85 13:46
+RSXMC.MAC;3         11.        24-AUG-85 13:46
+RSXASM.CMD;1        5.         24-AUG-85 13:53
+RSXDRVASM.CMD;1     3.         24-AUG-85 13:54
+RSXBLD.CMD;1        2.         24-AUG-85 13:54
+SGNPARM.CMD;1       3.         24-AUG-85 13:54
+TTDRVBLD.CMD;1      1.         24-AUG-85 14:04
+
+TOTAL OF 198./220. BLOCKS IN 15. FILES
+
+
+Disk read looks to be OK, looks to be a system generation distribution disk?

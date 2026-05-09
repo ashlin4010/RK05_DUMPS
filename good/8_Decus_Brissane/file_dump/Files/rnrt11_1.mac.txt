@@ -1,0 +1,850 @@
+.TITLE	RNRT11.MAC	Double Buffered RT-11 INTERFACE FOR RSX RUNOFF
+.ENABL	LC
+.NLIST	BEX,TOC
+
+.SBTTL	M02-B	15-Aug-81
+
+		.If eq 1
+Author:	C G Wilson, 71 Galatea St., Charleville 4470, Australia.
+
+For RUNOFF Version M02: Adapted and rewritten from
+	START.MAC
+	RNFIO.MAC
+	RNORSX.MAC
+
+M01-C [26-Apr-80] Bug fix and general tidying
+
+M01-D [3-Sep-80] Mods to HYPHEN.MAC to allow hyphenation to work.
+
+M02-A [3-Aug-81] Adapted for Runoff M02
+	Note the change in OUTPUT from M01.  RUNOFF.MAC has calls to
+	OUTPUT which are unnecessary from an RT11 viewpoint, and so
+	this has been changed to a dummy routine.  The routine
+	to flush the buffer is now OUCLR.
+
+M02-A/2 [5-Aug-81] Double-buffered version.
+
+M02-B/2 [15-Aug-81] Bug fix for non-file structured input devices
+		.Endc
+
+						.PSECT
+						.PSECT	MESAGE	CON
+VER:	.ASCIZ	#Runoff M02-C/2 RT-11 (from RSX)#
+						.PSECT
+
+.MCALL	.SRESET,.SETTOP,.CSIGEN,.PRINT,.RCTRLO,.CLOSE
+.MCALL	.TTYOU,.TTYIN,.READW,.WRITW,.WAIT
+.MCALL	.READC,.WRITC,.EXIT,.QSET
+
+.GLOBL	$INITL,$ULMSW,$ULSSW,$ULNSW,$ERMSG
+.GLOBL	FOOTP1,FOOTP2,FOOTP3,XTOP,XBOT
+.GLOBL	FFDSW,HYPSW,PAUSW,UPCSW,LGO,LINSET
+.GLOBL	EOF,S1
+.GLOBL	HGHPAG,LOWPAG,PAGENO,INPERR,OUTERR
+.GLOBL	PRMRG,RMARG,INLPG,PNLPG,NLPG
+
+JSW=:44		;Job status word
+B.TSPM=:10000	;TT Special mode bit
+
+B.EOF=:20000	;EOF bit in Channel Status Word (CSW)
+B.HDERR=:1	;Error bit in CSW (RDCRT relies on this having value 1)
+
+ERRBYT=:52	;Monitor error byte
+
+CR=:15
+LF=:12
+
+.MACRO	TYPE	A
+	.PSECT	MESAGE	CON
+	$$$=.
+	.ASCII	A
+	.PSECT
+	.PRINT	#$$$
+.ENDM
+
+.MACRO	TX	A
+	.PSECT	MESAGE	CON
+	.ASCII	A
+	.PSECT
+.ENDM
+.PAGE
+;Data Locations
+
+SPSAV::	0			;For saving SP for re-runs
+$SWTCH::0			;Switch register (bits defined in RUNOFF)
+ULSWT::	.BLKB	2		;For underscore character
+
+AREA::	.BLKW	6		;Programmed request workspace.
+OBLK::	0			;Output block #
+IBLK::	0			;Input block #
+ICHN::	0			;Input channel
+
+LIMIT:	.LIMIT			;Low and High Program Limits (2 words)
+HLIMIT::0			;Limit after buffers allocated
+DEFTYP:	.RAD50	/RNODOC      /	;Default input & output extensions
+
+
+TMPPNT::0			;Pointer for temporary input buffer (see COMND)
+TMPBUF::.BLKB	134.		;Buffer must equal command buffer CMBF
+
+SVALL:	0			;Loc for LINES value of /S switch
+SVALC:	0			;Loc for COLUMNS, ibid
+.PAGE
+.SBTTL	Double-buffering data:
+
+;The buffer structure consists of a header (6 words long) for each pair
+; of buffers, and a buffer detail section (5 words long) for each buffer.
+
+ICHAN::	0		;Input channel #
+NUMBUF::0		;Number of blocks per buffer
+
+;INPUT BUFFERS:
+
+;Buffer Header:
+IBH::	0		;Pointer to current buffer detail block
+IBHC::	0		;Byte count for current buffer
+IBHP::	0		;Pointer within current buffer (if 0, eof or error)
+IBHB::	0		;Next block to be read
+IBHF::	0		;Pointer to buffer to be used by next READ request
+IBHR::	0		;Pointer to buffer to be accessed on  next
+			; coroutine entry.
+;Buffer Detail sections:
+B.LNK=:0		;Link word to next detail section
+B.SIZ=:2		;Word containing size in words of buffer data area
+B.NUS=:4		;Word containing actual number of words in use
+B.FLG=:6		;Flag word: 1 ready for user, 0 being processed by
+			;	monitor, -1 eof, -2 error.
+B.PNT=:10		;Pointer to data area of buffer.
+
+IB1H::	.WORD	IB2H	;First detail section
+	.BLKW	4
+IB2H::	.WORD	IB1H	;Second.
+	.BLKW	4
+
+;OUTPUT BUFFER BLOCKS:
+
+OBH::	0
+OBHC::	0
+OBHP::	0
+OBHB::	0
+OBHF::	0
+OBHR::	0
+OB1H::	.WORD	OB2H
+	.BLKW	4
+OB2H::	.WORD	OB1H
+	.BLKW	4
+.PAGE
+.SBTTL	Start - initialization section
+
+$START::			;Entered here from RUNOFF/.END START
+	MOV	SP,SPSAV
+RUNOFF::
+	MOV	SPSAV,SP
+	.SRESET
+	.RCTRLO
+	.SETTOP	LIMIT+2
+
+	MOV	LIMIT+2,R1	;Allocate room for 6 queue elements
+	.QSET	R1,#6
+	MOV	R0,HLIMIT
+
+	MOV	#1,NUMBUF	;Initially set for 1-block buffers
+
+	CALL	$INITL		;Initialize variables
+	CLR	TMPPNT		;And temporary buffer pointer
+	CLR	SVALL		;Clear locs for /S switch
+	CLR	SVALC
+
+	MOV	HLIMIT,R1	;Free space
+	.CSIGEN	R1,#DEFTYP
+	MOV	R0,HLIMIT
+
+	BIS	#FFDSW,$SWTCH	;Default is form-feeds proper.
+	BIC	#HYPSW,$SWTCH	;Default is no hyphenation.
+
+	MOV	(SP)+,R4	;# of switches
+	BNE	NEXSWT
+	  JMP	NOSWT		;None specified
+
+NEXSWT:
+	MOV	(SP)+,R1	;b15 set if value specified, b14-8 file on which
+				; switch specified, b7-0 ascii value of switch.
+	BIC	#40,R1		;In case lower case
+	MOV	(SP),R2		;Value
+
+	CMPB	R1,#'U		;/U=Underscore :B backspace :S simulate :L line
+	BNE	CHKF
+
+	CLRB	$ULMSW		;Set default /U as /U:L
+	CLRB	$ULSSW
+	CLRB	$ULNSW
+
+	TST	R1
+	BGE	5$		;/U = /U:L
+
+	CMP	R2,(PC)+
+	.RAD50	/B/
+	BNE	10$
+	COMB	$ULMSW		;/U:B
+5$:	JMP	ENDSWT
+10$:
+	CMP	R2,(PC)+
+	.RAD50	/S/
+	BNE	20$
+	COMB	$ULSSW		;/U:S
+	BR	ENDSWT
+20$:
+	CMP	R2,(PC)+
+	.RAD50	/N/
+	BNE	30$
+	COMB	$ULNSW		;/U:N
+	BR	ENDSWT
+30$:
+	CMP	R2,(PC)+	;/U:L
+	.RAD50	/L/
+	BNE	ILLSWT
+	BR	ENDSWT
+
+CHKF:
+	CMPB	R1,#'F		;/F - simulate ff's with lf's
+	BNE	CHKH
+	TST	R1		;Value specified?
+	BLT	NOVAL		;Yes - tell him it's not necessary
+	BIC	#FFDSW,$SWTCH
+	BR	ENDSWT
+
+CHKH:
+	CMPB	R1,#'H		;/H - Allow Hyphenation
+	BNE	CHKP
+	TST	R1
+	BLT	NOVAL
+	BIS	#HYPSW,$SWTCH
+	BR	ENDSWT
+
+CHKP:
+	CMPB	R1,#'P		;/P - Pause between pages
+	BNE	CHKR
+	TST	R1
+	BLT	NOVAL
+	BIS	#PAUSW,$SWTCH
+	BR	ENDSWT
+
+CHKR:
+	CMPB	R1,#'R		;/R:<low page limit>:<high page limit>
+	BNE	CHKC
+	TST	R1		;/R requires a value
+	BGE	ILLVAL
+	TST	HGHPAG		;First one encountered should be high limit
+	BGE	10$
+	MOV	R2,HGHPAG
+	BR	ENDSWT
+10$:
+	MOV	R2,LOWPAG
+	BR	ENDSWT
+
+CHKC:
+	CMPB	R1,#'C		;/C - Force upper case
+	BNE	CHKB
+	TST	R1
+	BLT	NOVAL
+	BIS	#UPCSW,$SWTCH
+	BR	ENDSWT
+
+CHKB:
+	CMPB	R1,#'B		;/B - Number of blocks per buffer
+	BNE	CHKS
+	TST	R1
+	BGE	MISVAL		;Error if no value
+	MOV	R2,NUMBUF
+	BR	ENDSWT
+
+CHKS:
+	CMPB	R1,#'S		;/S:lines:columns - Paper Size
+	BNE	ILLSWT
+	TST	R1		;Must have a value
+	BEQ	MISVAL
+	CMP	R2,#10.		;And that within reasonable range
+	BLT	ESVAL
+	TST	SVALL		;See if first or second value
+	BEQ	10$		;First
+	MOV	SVALL,SVALC	;If only one, is lines.
+10$:	MOV	R2,SVALL
+	BR	ENDSWT
+
+ILLSWT:
+	TYPE	<"Illegal Switch.">
+	TX	<"  Only /U:B:S:L:N, /F, /H, /P, /C,"<cr><lf>>
+	TX	<"	/R:low:high, /B, & /S:lines:columns"<0>>
+	JMP	RUNOFF
+ILLVAL:
+	TYPE	<"/R switch requires 2 values"<0>>
+	JMP	RUNOFF
+NOVAL:
+	TYPE	<"/F, /C, /H, & /P may not have values"<0>>
+	JMP	RUNOFF
+MISVAL:
+	TYPE	<"/B & /S require a value"<0>>
+	JMP	RUNOFF
+ESVAL:
+	TYPE	<"/S value out of range"<0>>
+	JMP	RUNOFF
+
+ENDSWT:
+	TST	R1		;Value specified?
+	BGE	10$
+	TST	(SP)+		;Yes - scrub it from stack
+10$:	DEC	R4		;Any more switches?
+	BLE	NOSWT		;No.
+	JMP	NEXSWT		;Yep - see what he wants.
+NOSWT:
+	.WAIT	#0
+	BCC	10$		;If no output channel, just type ident.
+	.PRINT	#VER
+	JMP	RUNOFF
+10$:
+	MOV	NUMBUF,R2	;Number of blocks per I/O buffer
+	MOV	HLIMIT,R1	;R1 has start of buffer space
+
+	CALL	SETIBF
+	  BCS	NOBUF
+	CALL	SETOBF
+	  BCS	NOBUF
+	MOV	R1,HLIMIT
+	.SETTOP	R1
+	  BCS	NOBUF
+
+	DEC	R0		;New free space after handlers loaded
+	MOV	R0,FOOTP1
+	MOV	R0,FOOTP2
+	MOV	R0,FOOTP3
+
+	MOV	#INLPG,PNLPG	;Set default page size
+
+	MOV	SVALC,R0	;See if /S switch specified.
+	BEQ	20$
+	MOV	R0,PRMRG	;Specified /S for columns
+20$:	MOV	SVALL,R0
+	BEQ	30$
+	MOV	R0,PNLPG	;Specified /S for lines
+30$:
+	.SETTOP	#-2		;How are we off for free space?
+	MOV	R0,XTOP
+	MOV	R0,XBOT
+
+	MOV	PRMRG,RMARG	;Set up a few parameters - Right margin
+	MOV	PNLPG,NLPG
+
+	CALL	RDBUF		;Queue first buffer for input
+
+	CALL	LINSET
+	CALL	OPRWAT		;In case need to set up page on starting.
+	JMP	LGO		;And at last off we go to process something.
+
+ENDFIL::
+	CALL	OUCLR
+	.CLOSE	#0
+	JMP	RUNOFF
+
+
+NOBUF:	TYPE	</?Runoff-F-Insufficient Memory/<0>>
+	CMP	NUMBUF,#1	;Prang him if 1 block per buffer causes error
+	BEQ	10$
+	JMP	RUNOFF
+10$:	.EXIT
+
+.PAGE
+.SBTTL	SETIBF - Set up Input Buffers
+
+; SETIBF: Entry conditions:
+;		R1/	address to start buffers at
+;		R2/	number of blocks per buffer
+;	Returns:
+;		R1 updated to next free loc past buffers
+;		CC if OK, CS if insufficient room.
+
+SETIBF::
+	MOV	R2,-(SP)
+
+	MOV	#IB2H,IBH	;Initially point to LAST buffer detail block
+	MOV	#1,IBHC		;Count (tested after decrementing for zero)
+	MOV	SP,IBHP		;Must be non-zero or flag as error
+	CLR	IBHB		;Next input block
+	MOV	#IB1H,IBHF	;Set "next buffer" for input read and
+	MOV	#IB1H,IBHR	; coroutine use.
+	MOV	#3,ICHAN	;Initial input channel.
+
+	SWAB	R2		;Convert number of blocks to number of words.
+	  BNE	10$		;Must be within limits!
+	MOV	R2,IB1H+B.SIZ	;Both buffers same size at present.
+	MOV	R2,IB2H+B.SIZ
+
+	MOV	R1,IB1H+B.PNT	;First buffer address
+	ASL	R2		;Words to bytes
+	ADD	R2,R1		;Move pointer past it, checking for overflow
+	  BCS	20$
+	MOV	R1,IB2H+B.PNT	;Second buffer address
+	ADD	R2,R1
+	  BCS	20$
+
+	CLR	IB1H+B.FLG	;Signify empty buffers
+	CLR	IB2H+B.FLG
+
+	BR	20$
+10$:
+	SEC
+20$:
+	MOV	(SP)+,R2
+	RETURN
+.PAGE
+.SBTTL	SETOBF - Set up Output Buffers
+
+; SETOBF: Entry conditions:
+;		R1/	address to start buffers at
+;		R2/	number of blocks per buffer
+;	Returns:
+;		R1 updated to next free loc past buffers
+;		CC if OK, CS if insufficient room.
+
+
+SETOBF::
+	MOV	R2,-(SP)
+
+	MOV	#OB1H,OBH	;Set header to point to first detail block
+	SWAB	R2		;Blocks to words
+	  BNE	10$
+	MOV	R2,OBHC		;Set up byte count
+	ASL	OBHC
+	INC	OBHC		;(Need INC as DEC then BEQ)
+
+	CLR	OBHB		;Next block for output
+	MOV	R1,OBHP		;Output buffer pointer to data area
+
+	MOV	#OB1H,OBHF	;Next buffer for write and coroutine
+	MOV	#OB1H,OBHR	; use
+
+	MOV	R2,OB1H+B.SIZ	;Buffer size (same at present)
+	MOV	R2,OB2H+B.SIZ
+	MOV	R2,OB1H+B.NUS	;Same as number of words in use
+	MOV	R2,OB2H+B.NUS
+
+	MOV	#1,OB1H+B.FLG	;Set flag saying ready for programme use
+	MOV	#1,OB2H+B.FLG
+
+	MOV	R1,OB1H+B.PNT	;First buffer address
+	ASL	R2		;Words to bytes
+	ADD	R2,R1		;Point past this buffer
+	  BCS	20$
+	MOV	R1,OB2H+B.PNT
+	ADD	R2,R1
+	BR	20$
+10$:
+	SEC
+20$:
+	MOV	(SP)+,R2
+	RETURN
+.PAGE
+.SBTTL	File Input
+
+;**** FIN **** Read Character from Input into R1
+
+FIN::
+	TST	TMPPNT		;Any hangover from commands?
+	BNE	RDOLDC		;Yes - check it out.
+
+	CALL	INB
+	BCC	10$
+	MOV	#EOF,R1		;If CS from INB, return EOF.
+10$:	RETURN
+
+
+RDOLDC:				;Read remnant left from old command
+	MOVB	@TMPPNT,R1
+	BNE	10$
+	CLR	TMPPNT		;No more left after null
+	BR	FIN
+10$:
+	INC	TMPPNT
+	RETURN
+
+;**** INB **** Actual Byte-by-byte Input.  Returns CS if error or eof.
+
+INB::
+	TST	IBHP
+	BEQ	40$		;Zero count = previous eof or error
+
+	DEC	IBHC		;Any more?
+	BEQ	10$		;No - try next buffer.
+	MOVB	@IBHP,R1
+	INC	IBHP
+	BIC	#177600,R1
+	BEQ	INB
+	CLC
+	RETURN
+10$:
+	MOV	@IBH,R1		;Set pointers for next buffer
+	MOV	R1,IBH
+
+	CMP	B.FLG(R1),#-1	;Hit EOF on next buffer?
+	BNE	15$		; No - all's well.
+
+	CLR	IBHB		;EOF on one file.  Try the next if any.
+	INC	ICHAN
+	CMP	ICHAN,#10
+	BHI	40$		;No more - dinkum EOF this time.
+	CLR	B.NUS(R1)	;Make it look like empty buffer to next call
+	MOV	#1,B.FLG(R1)
+15$:
+	CALL	RDBUF		;Set to read next bufferful
+20$:
+	TST	B.FLG(R1)	;See if this buffer's ready for use.
+	BEQ	20$		;No - wait for it
+	  BLT	30$		;Error.
+
+	MOV	B.NUS(R1),IBHC	;Number of words filled in buffer
+	ASL	IBHC
+	INC	IBHC		;Reset byte count in header
+	MOV	B.PNT(R1),IBHP	;and pointer
+	BR	INB
+
+30$:				;Must be ERROR to get here.
+	CLR	IBHP		;So gets error at top level of input routines
+	CMP	B.FLG(R1),#-2	;INPUT ERROR - only give message once
+	BNE	40$
+	MOV	#-1,B.FLG(R1)
+	MOV	ICHAN,R1
+	ADD	#'0,R1		;Set up digit for input channel #
+	MOVB	R1,IERM
+	MOV	R0,-(SP)
+	.RCTRLO
+	.PRINT	#IERMES
+	MOV	(SP)+,R0
+40$:
+	CLR	R1
+	SEC
+	RETURN
+
+.PSECT	MESAGE	CON
+IERMES:	.ASCII	/?Runoff-F-Input Error on Channel /
+IERM:	.BYTE	0,0
+.PSECT
+.PAGE
+.SBTTL	RDBUF - Read next input buffer
+.ENABL	LSB
+
+RDBUF::
+	MOV	R0,-(SP)
+	MOV	R1,-(SP)
+
+	MOV	IBHF,R1		;Address of subheader for next read
+	  BEQ	50$		;(if zero, no more - previous error or eof)
+	CLR	B.FLG(R1)	;Set so know it's not ready for user yet.
+RDB:
+	.READC	#AREA,ICHAN,B.PNT(R1),B.SIZ(R1),#RDCRT,IBHB
+	  BCS	10$
+	MOV	R0,B.NUS(R1)	;Number of words actually read
+	SWAB	R0		;Number of blocks
+	ADD	R0,IBHB
+	MOV	@IBHF,IBHF	;Reset block for next read
+	BR	50$
+
+;End of file (or error) on one read:
+
+10$:
+	CMPB	@#ERRBYT,#1	;See what returned error code was
+	  BEQ	30$		;Whoops - Error!
+	CMP	ICHAN,#10	;See if have tried all channels
+	BHI	20$		;Yes - complete EOF.
+
+	CLR	IBHB		;No - try next channel.
+	INC	ICHAN
+	BR	RDB
+
+;EOF on last input channel:
+
+20$:
+	MOV	#-1,B.FLG(R1)	;Set EOF in flag word
+	BR	40$
+
+;ERROR on input:
+
+30$:
+	MOV	#-2,B.FLG(R1)	;Error set in flag word
+40$:
+	CLR	IBHF		;Either EOF or error clears read block link
+50$:
+	MOV	(SP)+,R1
+	MOV	(SP)+,R0
+	RETURN
+.DSABL	LSB
+.PAGE
+.SBTTL	File Output Routines
+.ENABL	LSB
+
+;**** FMSG **** Write Line to File (Null Terminated)
+
+FMSG::
+	MOVB	@S1,R1
+	BEQ	10$
+	CALL	FOUT		;Output character by character
+	INC	S1
+	BR	FMSG
+
+;**** CRLF **** Write <cr><lf> to File
+
+CRLF::
+	MOV	(PC)+,R1	;Send <cr><lf>
+	.BYTE	LF,CR
+	MOV	PC,-(SP)	;So when returns, get next character
+	SWAB	R1
+
+;**** FOUT **** Write Single Character to File
+
+FOUT::
+	CMP	PAGENO,LOWPAG	;Check page limits line by line
+	BLO	10$
+	CMP	PAGENO,HGHPAG
+	BLOS	OUB
+
+	TST	HGHPAG		;Second time through?
+	BEQ	10$		;Yes - just scram.
+	CALL	OUCLR		;Send last buffer
+	CLR	HGHPAG
+	JMP	ENDFIL		;No - initiate termination.
+10$:
+
+;**** OUTPUT **** Dummy version for RT11
+
+OUTPUT::
+	RETURN
+
+.DSABL	LSB
+.ENABL	LSB
+
+;**** OUB **** Actual Byte-by-byte Output
+
+OUB::				;Expects character in R1
+	DEC	OBHC
+	BEQ	10$
+	MOVB	R1,@OBHP
+	INC	OBHP
+	CLC
+	RETURN
+10$:
+	MOV	R0,-(SP)	;Save character for output while swapping
+	CALL	WRBUF		; pointers.  Queue last buffer for output.
+	MOV	@OBH,R0
+	MOV	R0,OBH
+20$:
+	TST	B.FLG(R0)	;See if next buffer free for writing into
+	BEQ	20$		;Not yet, wait on.
+	  BLT	OERR		;Whoops.
+	CALL	RESETO		;Reset output buffer pointers.
+	MOV	(SP)+,R0
+	BR	OUB
+
+
+;**** RESETO **** Reset output buffer pointers etc
+
+RESETO:
+	MOV	B.SIZ(R0),B.NUS(R0) ;Reset # in use in case /P
+	MOV	B.SIZ(R0),OBHC	;Set output byte count from word size of buf
+	ASL	OBHC
+	INC	OBHC
+	MOV	B.PNT(R0),OBHP	;and buffer data area pointer
+	RETURN
+
+
+;**** OUCLR **** Flush current output buffer "ring":
+
+OUCLR::
+	MOV	R0,-(SP)
+	MOV	R1,-(SP)
+
+	CLR	R1		;Prepare to insert a zero into the buffer
+	BIT	#1,OBHP		;If pointing to odd address, need zero
+	BEQ	30$
+	CALL	OUB
+30$:
+	MOV	OBHC,R0		;Determine number of words used
+	ASR	R0
+	MOV	OBH,R1
+	MOV	B.SIZ(R1),-(SP)
+	SUB	R0,(SP)
+	MOV	(SP)+,B.NUS(R1)
+	BEQ	40$
+	CALL	WRBUF
+	MOV	@OBH,OBH	;Advance current buffer pointer
+40$:
+	MOV	OBH,R0
+	CALL	RESETO		;Reset output buffer parameters
+
+	.WAIT	#0
+	  BCS	OERR
+	MOV	(SP)+,R1
+	MOV	(SP)+,R0
+	RETURN
+
+;Output Error
+
+OERR:
+	.RCTRLO
+	.PRINT	#OERMES
+	JMP	RUNOFF
+
+
+.PSECT	MESAGE	CON
+OERMES:	.ASCIZ	/?Runoff-F-Output Error/
+.PSECT
+.DSABL	LSB
+.PAGE
+.SBTTL	WRBUF - Queue buffer for output
+.ENABL	LSB
+
+WRBUF::
+	MOV	R0,-(SP)
+	MOV	R1,-(SP)
+
+	MOV	OBHF,R1		;Next buffer detail section for writing
+	  BEQ	20$		;(Zero if previous error)
+	CLR	B.FLG(R1)	;Signify buffer not ready for user.
+WRB:
+	.WRITC	#AREA,#0,B.PNT(R1),B.NUS(R1),#WRCRT,OBHB
+	  BCS	10$
+	ADD	#377,R0		;Round number of blocks as OUCLR can foul it.
+	BIC	#377,R0
+	SWAB	R0		;Actual number of words written
+	ADD	R0,OBHB		;converted to blocks and added to block #
+	MOV	@OBHF,OBHF
+	BR	20$
+.DSABL	LSB
+
+;OUTPUT ERROR
+
+10$:
+	MOV	#-2,B.FLG(R1)	;Set so he'll get error message
+	CLR	OBHF		; and won't try for another buffer
+20$:
+	MOV	(SP)+,R1
+	MOV	(SP)+,R0
+	RETURN
+.PAGE
+.SBTTL	WRCRT, RDCRT - Write/Read Coroutines
+
+WRCRT::
+	MOV	OBHR,R1		;Next segment for coroutine use
+	MOV	(R1),OBHR	;reset for next time
+	BR	CRT
+
+RDCRT::
+	MOV	IBHR,R1
+	MOV	(R1),IBHR
+CRT:
+	BIT	#B.EOF!B.HDERR,R0	;Test for EOF or Error
+	BEQ	10$		;OK.
+
+	BIC	#^C<B.HDERR>,R0	;Boob.  Set result to -1 or -2 as appropriate
+	COM	R0		;WARNING - Relies on B.HDERR=1
+	BR	20$
+10$:
+	MOV	#1,R0		;If all's well, tell him buffer's ready.
+20$:
+	MOV	R0,B.FLG(R1)
+	RETURN
+.PAGE
+
+; OPRWAT - Wait for operator response from terminal.
+;		As the user's terminal may be the device for printing,
+;		don't let his <cr><lf> echo!
+
+	.ENABL	LSB
+OPRWAT::
+	BIT	#PAUSW,$SWTCH
+	BEQ	20$		;No pauses requested.
+
+	MOV	R0,-(SP)
+	CALL	OUCLR		;Assume terminal type device, and flush.
+
+	.RCTRLO
+	TYPE	<<7><7><200>>
+	BIS	#B.TSPM,@#JSW
+10$:
+	.TTYIN
+	BIC	#^C<177>,R0
+	CMP	R0,#LF
+	BNE	10$
+
+	BIC	#B.TSPM,@#JSW
+	MOV	(SP)+,R0
+20$:	RETURN
+	.DSABL	LSB
+.PAGE
+.SBTTL	Teletype Output Routines
+
+; TTC3 - Send a line to the terminal (null at end gives <cr><lf>)
+
+TTC3::
+	.RCTRLO
+	.PRINT	@(SP)
+	ADD	#2,(SP)		;Skip return
+	RETURN
+
+; TTC33 - Send a <cr><lf> to the terminal
+
+TTC33::
+	.TTYOU	#CR
+	.TTYOU	#LF
+	RETURN
+
+; TTC1 - Send one char to the terminal
+
+TTC1::
+	MOVB	R1,R0
+	CMP	R0,#37		;Runoff sends out quoted spaces just to bugger
+	BNE	10$		; us up (fouls some terminals).
+	INC	R0		;Make it a space
+10$:
+	.TTYOU
+	RETURN
+.PAGE
+.SBTTL	Integer multiply & divide routines
+
+$MUL::
+	MOV	R0,-(SP)	;Save multiplicand
+	CLR	-(SP)		;For single-precision result
+10$:
+	CLC
+	ROR	R1		;Look at next bit in multiplier
+	BCC	20$
+	ADD	R0,(SP)		;If not zero, add in next to result
+	CLC
+20$:	ROL	R0
+	TST	R1
+	BNE	10$
+
+	MOV	(SP)+,R1	;Result into R1
+	MOV	(SP)+,R0	;and restore multiplicand
+	RETURN
+
+;$DIV - Inputs	R0 dividend
+;		R1 divisor
+
+;	Outputs R0 quotient
+;		R1 remainder
+
+$DIV::
+	MOV	#16.,-(SP)	;Iteration count - 16 bits
+	MOV	R1,-(SP)	;Save divisor for subtractions
+	CLR	R1
+10$:
+	ASL	R0		;Double left shift
+	ROL	R1
+	CMP	R1,(SP)
+	BLO	20$
+	SUB	(SP),R1		;Subtract if relevant, and
+	INC	R0		; add in to quotient
+20$:
+	DEC	2(SP)
+	BGT	10$
+	CMP	(SP)+,(SP)+
+	RETURN
+.END

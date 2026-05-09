@@ -1,0 +1,1595 @@
+.rm 70
+.ps 2000
+.lm 1
+.i-1;1 _@
+.s 1
+ This commamd opens an indirect file for command input. It is identical to
+ the TAKE command. The format of the command is:
+.lit
+
+		Kermit-11>@ file-specification
+
+.eli
+ where 'file-specification' is any valid file specification on the system
+ on which the server kermit is running.
+.s 1
+.i-1;1 BINARY FILES
+.s 1
+#Binary files are those files which require all eight bits in each character.
+Text files, like program source files, compiler listing and runoff files,
+normally use only the low seven bits in each character. Binary files
+include task images, save images, RMS relative and indexed files and other
+special types of files.
+.br
+#In order for Kermit to transfer these files Kermit-11 needs an eight bit
+line, which for most PDP-11 systems is the default. Additionally, most
+Kermits need to be set into a binary mode to transfer such files. The
+command to do this is usually the 'SET FILETYPE BINARY' command, or
+'SET FIL BIN' for short. Since various Kermit implementations are at
+different stages of developement, most Kermit links can NOT handle
+binary files automatically, thus the above SET command must be given
+to BOTH Kermits prior to a binary file transfer.
+.br
+#Version 2.16 (and later versions) 
+of Kermit-11, however, can do the switch into binary mode
+automatically if the file attributes (and protection code for RSTS/E)
+indicate that the file is most likely a binary file. Additionally,
+two Kermit-11's connected to each other will both do the 'right' thing
+if this is the case by the sending Kermit-11 telling the receiving
+Kermit-11 to switch to binary mode. In this case, the sending Kermit-11
+will also send a copy of the file attributes over so the receiving
+Kermit-11 can properly set this when the file is closed.  Thus two
+Kermit-11's connected to each other can send task images, RMS indexed files
+and so on.
+.s 1
+.i-1;1 BYE
+.s 1
+ The BYE command will cause Kermit-11 (when in local mode) to tell the
+ other kermit (which should be in server mode) to exit from kermit and
+ if applicable terminate its job (or process, etc.). When Kermit-11
+ receives the acknowledgement that this is being done, it will prompt
+ for another command. The DISCONNECT command should always follow the BYE
+ command. The format for BYE is:
+.lit
+
+		Kermit-11>BYE
+
+.eli
+.s 1
+.i-1;1 COMMAND-LINE
+.s 1
+ Kermit, if the task is installed on RSX11M/N+ or has a CCL name for
+ it for RSTS/E, will get that command and execute it immediatley. For
+ all command other than SERVER, Kermit will exit upon completion of
+ the command. In the case of the SERVER command, Kermit will return
+ to interactive mode if the local Kermit sends it a FINISH command.
+.lit
+
+		> KERMIT SERVER
+		$ KERMIT HELP
+
+.eli
+.i-1;1 CONNECT
+.s 1
+ The CONNECT command will allow you to connect in as a virtual terminal
+ over the line that was specified by the set line command. (Using the CONNECT
+ command before using the SET LINE command will result in an error message)
+ The terminal line must be one which is accessable to the user. The format
+ of the CONNECT command is:
+.lit
+
+		Kermit-11>CONNECT
+
+.eli
+The distributed RSX11M/M+ task has been built with the /PR:0 switch to enable
+the task to change other terminal settings. Addtionally, for RSX11M/M+, the
+MCR command SET /SLAVE=TTnn: should be done before entering Kermit-11.
+.s 1
+If you are running K11POS.TSK on a PRO/350, Kermit will set the line to XK0:
+and the speed to 9600 by default.
+.s 1
+Please note that Kermit-11 CAN NOT change the speed of a DL11 type interface,
+nor can it change the speed of a PDT-150 modem port (use SPEED.SAV).
+.s 1
+The following is an example of using a Racal-Vadic VA212 autodialing modem
+to log into a remote TOPS-20 system.  There are two points at which there
+is no echoing of the user input. The first is the typing of a control-E <cr>
+sequence to get the attention of the modem, which responds by sending the
+string 'HELLO:I'M READY'.  The second is the typing of the local 'escape
+sequence', which by default is control _\ followed by a 'c'. The control
+backslash informs the terminal emulator that the next character is a command.
+In this case, the command was 'C', which means to return to the local PDP-11
+system. Control _\ ? would print a help message.
+
+.lit
+
+
+	$ kermit
+	Kermit-11 V2.13
+	Kermit-11>set logfile 20.log
+	Kermit-11>set deb console
+	Kermit-11>set lin tt58:
+	Link device set to TT58:
+	Kermit-11>set spe 1200
+	Kermit-11>con
+	Connecting to TT58:
+	
+	HELLO:I'M READY
+	*d
+	NUMBER? 
+	3
+	9-1-212-123-4567
+	9-1-212-123-4567
+	
+	DIALING...
+	ANSWER TONE
+	ON LINE 
+	
+	enter class 4
+	class 004 start
+	
+	CU20B
+	@log xx.abcdef 
+	 CU20B, TOPS-20 Monitor 5.1(5101)-2
+	 Job 28, TTY32, 2-Apr-84 4:15:24PM
+	 Previous login was 2-Apr-84 4:10:16PM
+		.
+		.
+		.
+		.
+	@log
+	[Confirm]
+	Logged out Job 28, User XX.ABCDEF , TTY 32,
+	  at  2-Apr-84 16:19:34,  Used 0:00:11 in 0:04:10
+	
+	Kermit-11>disc
+	KERMIT link TT58: disconnected
+	Kermit-11>exit
+	
+	$ logout
+
+.eli
+.i-1;1 COPY
+.s 1
+The COPY command creates
+a copy of the input file. The Kermit-11 COPY command does
+NOT support wildcards in the filename, and while COPY does use multiblock
+buffering it is usually more efficient to use
+the system utilty PIP or the DCL command COPY for this.
+COPY uses RMS block i/o for both RSTS and RSX.
+Any executable RSTS file (*.TSK, *.BAC and *.SAV) copied will not be
+useable until it's run time system name and protection code is reset.
+.lit
+
+		Kermit-11> COPY
+		From: ABCDEF.DAT
+		To  : FUBAR.LST
+
+	or
+
+		Kermit-11> COPY ABCDEF.DAT FUBAR.LST
+
+.eli
+.s 1
+.i-1;1 DECNET
+.s 1
+Kermit-11 can access DECNET files if built with DAP support. This is
+included in the task images K11NRS.TSK and K11RSX.TSK as distributed.
+DECNET support has been tested for RSX11M. See SET DEFAULT for more
+information.
+.s 1
+.i-1;1 DELETE
+.s 1
+The DELETE command will delete the specified file or file group from the
+system. Wildcards are permitted.
+.lit
+
+		Kermit-11>DELETE FUBAR.MAC
+		Kermit-11>DELETE FUBAR.*
+
+.eli
+.s 1
+.i-1;1 DIRECT
+.s 1
+ The DIRECT command will display the current default directory when
+ used in the format:
+.lit
+
+		Kermit-11>DIRECT
+
+.eli
+ If a directory other than the current default directory is desired then
+ DIRECT may be used in the format:
+.lit
+
+		Kermit-11>DIRECT file-specification
+
+.eli
+ where 'file-specification' is any legitimate combination of device name,
+ uic or ppn, and a filename which can include wild carding characters.
+.s 1
+.i-1;1 DISCONNECT
+.s 1
+ The DISCONNECT command cuases Kermit-11 to 'hang-up' the line which was
+ specified with the SET LINE command and connected with the CONNECT
+ command. The format is:
+.lit
+
+		Kermit-11>DISCONNECT
+
+.eli
+.s 1
+.i-1;1 DISPLAY
+.s 1
+ The Display command will format and print global read/write data, defined
+ in K11MAC.MAC, to the terminal, as in:
+.lit
+
+		Kermit-11>DISP PROMPT
+
+.eli
+.s 1
+.i-1;1 ERASE
+.s 1
+ The ERASE command will ERASE the specified file or file group from the
+ system. Wildcards are permitted.
+.lit
+
+		Kermit-11>ERASE FUBAR.MAC
+		Kermit-11>ERASE FUBAR.*
+
+.eli
+The ERASE command is identical to the DELETE command.
+.s 1
+.i-1;1 EXIT
+.s 1
+ The EXIT command will cause kermit to return to the command level. This
+ command is the same as the QUIT command. The format is:
+.lit
+
+		Kermit-11>EXIT
+
+.eli
+.s 1
+.i-1;1 FINISH
+.s 1
+ The FINISH command will tell Kermit-11 ,which is in local mode, to signal
+ the other kermit to exit from server mode. When Kermit-11 has received
+ acknowledgement that this is being done it will prompt for another command.
+ The command format is:
+.lit
+
+		Kermit-11>FINISH
+
+.eli
+.s 1
+.i-1;1 GET
+.s 1
+ The GET command tells the remote kermit which is in server mode to get
+ a file or group of files. The format for this command is:
+.lit
+
+
+		Kermit-11>GET file-specification
+
+.eli
+ where 'file-specification' may include any legitimate device,ppn or uic as
+ well as the file specification. Wildcarding may be used in the file-spec.
+ to obtain a group of files.
+.s 1
+.i-1;1 HANGUP
+.s 1
+ The HANGUP command will drop the remote line specified by the SET LINE
+ command and connected by the CONNECT command. The same function is
+ performed by the DISCONNECT command. The format of the HANGUP command is:
+.lit
+
+		Kermit-11>HANGUP
+
+.eli
+.s 1
+.i-1;1 HELP-FILE
+.s 1
+The Kermit-11 help file (this file) should be located as follows:
+.lit
+
+	For RSTS/E, RSX11M/M+
+
+		LB:[1,2]K11HLP.HLP	or
+		SY:[1,2]K11HLP.HLP	or
+		KERMIT:K11HLP.HLP	or
+		HELP:K11HLP.HLP
+	
+	For RT11
+
+		DK:K11HLP.HLP		or
+		SY:K11HLP.HLP
+
+	For P/OS on the PRO/350
+
+		[001002]K11HLP.HLP
+
+.eli
+.s 1
+.i-1;1 HOST
+.s 1
+The HOST command is identical to the SYSTEM command in that it takes the
+command and spawns a process to execute the command.
+.lit
+
+		Kermit-11>HOST SHO TER 
+
+		Current settings for KB6:
+        	Broadcast   CRFill=0    NoEcho      NoHostSync
+        	Lowercase   NoParity    NoScope     Speed not settable
+	        Tab         NoTTSync    Width=80
+
+		Kermit-11>
+
+.eli
+.s 1
+.i-1;1 INTRODUCTION
+.s 1
+
+ The KERMIT file transfer protocol is intended for use in an  environment  where
+ there  may  be  a  diverse  mixture of computers -- micros, personal computers,
+ workstations, laboratory computers, timesharing systems -- from  a  variety  of
+ manufacturers.    All  these systems need have in common is the ability to
+ communicate in ASCII over ordinary serial telecommunication lines.
+.s 1
+ KERMIT was originally designed at Columbia University to meet the need for file
+ transfer between our DECSYSTEM-20 and IBM  370-series  mainframes  and  various
+ microcomputers.   It turned out that the diverse characteristics of these three
+ kinds of systems resulted in a design that was general enough to fit almost any
+ system.  The IBM mainframe, in  particular,  strains  most  common  assumptions
+ about how computers communicate.
+.s 1
+ The  KERMIT  protocol is specifically designed for character-oriented
+ transmission
+ over serial telecommunication lines.  The design allows for  the  restrictions
+ and peculiarities of the medium and the requirements of diverse operating
+ environments  --  buffering,  duplex, parity, character set, file organization,
+ etc.  The protocol is carried out by KERMIT programs on each end of the  serial
+ connection  sending "packets" back and forth; the sender sends file names, file
+ contents, and control information; the  receiver  acknowledges  (positively  or
+ negatively) each packet.
+.s 1
+ The  packets  have  a  layered  design,  in  keeping  with  the  ANSI  and  ISO
+ philosophies, with the outermost fields used by the data link layer  to  verify
+ data  integrity,  the  next  by the session layer to verify continuity, and the
+ data itself at the application level.
+.s 1
+ Connections between systems are established by the ordinary user.  In a typical
+ case, the user runs KERMIT on a microcomputer, enters terminal emulation,
+ connects to a remote host computer (perhaps by dialing up), logs in, runs
+ KERMIT
+ on the remote host, and then issues commands to that KERMIT  to  start  a  file
+ transfer,  "escapes"  back  to the micro, and issues commands to that KERMIT to
+ start its side of the file transfer.  Files may be  transferred  singly  or  in
+ groups.
+.s 1
+ Basic  KERMIT  provides only file transfer, and that is provided for sequential
+ files only, though the protocol attempts to allow for various types of
+ sequential files. Microcomputer implementations of KERMIT are also expected to
+ provide terminal emulation, to facilitate the initial connection.
+.s 1
+ More advanced implementations simplify the user interface somewhat by allowing
+ the KERMIT on the remote host to run as  a  "server",  which  can  transfer
+ files in either direction upon command from the local "user" Kermit. The server
+ can also provide  additional functionality, such as file management, messages,
+ mail, and so forth.  Other optional features  also  exist,  including  a
+ variety  of  block  check  types,  a mechanism for passing 8-bit data through a
+ 7-bit communication link, a way to compressing a repeated sequence  of
+ characters, and so forth.
+.s 1
+ As  local area networks become more popular, inexpensive, and standardized, the
+ demand for KERMIT and similar protocols may dwindle, but will never wither away
+ entirely.  Unlike hardwired networks, KERMIT gives the ordinary user the  power
+ to  establish  reliable  error-free connections between any two computers; this
+ may always be necessary for one-shot or long-haul connections.
+.s 1
+.i-1;1 LOCAL
+.s 1
+ The LOCAL command can be used to prefix any kermit command to insure 
+ that the command so prefixed will be carried out by the user's own
+ kermit. All commands are local by default with the exceptions of BYE,
+ FINISH,and GET. The LOCAL command format is:
+.lit
+
+		Kermit-11>LOCAL kermit command name
+
+.eli
+.s 1
+.i-1;1 QUIT
+.s 1
+ The QUIT command will cause Kermit-11 to return to the command level. This
+ command is the same as the EXIT command. The format is:
+.lit
+
+		Kermit-11>QUIT
+
+.eli
+.s 1
+.i-1;1 PRINT
+.s 1
+The PRINT command will cause the specified file(s) to be printed on the
+system line printer. This command may not function on all systems.
+.s 1
+.i-1;1 PRO/350
+.s 1
+.i-1;2 RT11 version 5.1
+.s 1
+Kermit-11 runs under the RT11 version 5.1 XM monitor by using the DIGITAL
+distributed XC handler. The XC handler supports several useful functions
+such as start/stop break, variable size reads and driver/line reset. Due
+to an apparent bug in the driver, Kermit has to use flow control (XON/XOFF)
+to control the sending Kermit at high speeds (9600 baud). This has the
+undesireable effect of slowing the transfer down by about 15 percent.
+This is enabled by typing SET RTFLOW ON.
+.br
+As an alternative, the XC handler can be modified to avoid all problems
+with buffer overflows by increasing the buffer size in XL.MAC. See the
+file K11PRT.MAC for information regarding this.
+.s 1
+Note the the XC handler does not accept _.SPFUN calls to change the baud
+rate, rather, you must set it prior to entering Kermit-11 as in
+SET XC:SPEED=9600.  The Kermit disconnect command will not function.
+Kermit will always fake a SET LINE XC0: at startup on the PRO/350.
+Unlike the standard RT11 Kermit-11, you DO NOT need to use the SET RTFLOW
+ON command to enforce flow control during the CONNECT command. The XC
+driver handles this automatically for you.
+.br
+To send a BREAK while in connect mode, type your local escape character
+(normally a CTRL _\) followed by a B.
+.s 1
+.i-1;2 P/OS version 2.0
+.s 1
+Kermit-11 will run on under P/OS on the Pro/350, the executable file is
+called K11POS.TSK. It does NOT (and can not) run from a menu, the normal
+way to run it is via the RUN command in DCL. It will support the Kermit-11
+attribute packets, thus a PRO/350 connected to a PDP11 host can
+transparently handle binary and other types of files. The P/OS Kermit-11
+can be run either as a local Kermit or a Kermit server. This has been
+tested under P/OS version 2 connected to both a PDP11/23+ and PDP11/70 RSTS/E
+host.
+.br
+When Kermit-11 is started on the PRO, it will automatically do a SET LINE XK0:
+and a SET SPEED 9600. You can, of course, change the speed to whatever you
+need with the SET SPEED command. The line should be left as XK0:.
+.s 1
+.i-1;1 RECEIVE
+.s 1
+ The RECEIVE command will put Kermit-11 into remote mode to wait for a
+ single file transfer transaction. Kermit-11 will wait for a file transfer
+ initialization from the other kermit. This command is useful if the other
+ kermit does not support local server commands. Command format is:
+.lit
+
+		Kermit-11>RECEIVE
+
+.eli
+ Please note that this version of Kermit-11 (Version 1) does NOT 
+ support the RECEIVE Command in the format:
+.lit
+
+		Kermit-11>RECEIVE filename
+
+.eli
+.s 1
+.i-1;1 REMOTE
+.s 1
+ The REMOTE command is used as a prefix to indicate to Kermit-11 that the
+ command so prefixed is to be executed by the other (remote) kermit server.
+ Command format:
+.lit
+
+		Kermit-11>REMOTE
+
+.eli
+ will return a prompt requesting a command name:
+.lit
+
+		Remote Kermit cmd ?
+
+.eli
+ REMOTE can also be used with a command name as an argument:
+.lit
+
+		Kermit-11>REMOTE command name
+
+.eli
+ Please see HELP REMOTE command name for details and HELP SERVER for
+ general Kermit server operation.
+.s 1
+.i-1;2 BYE
+.s 1
+ The REMOTE BYE command will
+ cause Kermit-11 (when in local mode) to tell the
+ other kermit (which should be in server mode) to exit from kermit and
+ if applicable terminate its job (or process, etc.). When Kermit-11
+ receives the acknowledgement that this is being done, it will prompt
+ for another command. The DISCONNECT command should always follow. This
+ command (REMOTE BYE) is the same as the BYE command. The command format is:
+.lit
+ 
+		Kermit-11>REMOTE BYE
+
+or
+
+		Kermit-11>REMOTE 
+		Remote Kermit cmd ?BYE
+
+.eli
+.s 1
+.i-1;2 COPY
+.s 1
+The remote copy is just like the local copy command in that it creates
+a copy of the input file. Like the local Kermit-11 COPY command it does
+NOT support wildcards in the filename, and while COPY does use multiblock
+buffering it is usually more efficient to use
+the system utilty PIP or the DCL command COPY for this.  
+COPY uses RMS block i/o for both RSTS and RSX.
+Any executable RSTS file (*.TSK, *.BAC and *.SAV) copied will not be
+useable until it's run time system name and protection code is reset.
+.lit
+
+		Kermit-11>REMOTE COPY
+		From: ABCDEF.DAT
+		To  : FUBAR.LST
+
+	or
+
+		Kermit-11>REMOTE COPY ABCDEF.DAT FUBAR.LST
+
+.eli
+.s 1
+.i-1;2 DIRECT
+.s 1
+The remote DIRECT command will tell the remote Kermit server to send a
+directory listing over the connection.  Not all Kermit servers have this
+implemented.
+.lit
+
+		Kermit-11>REM DIR *.MAC
+
+.eli
+The above example would tell the remote server to send a directory listing
+of all files ending with a .MAC filetype.
+.s 1
+.i-1;2 ERASE
+.s 1
+The remote ERASE command will tell the remote Kermit server to delete any
+files matching the filespecification. For a Kermit-11 server, this can
+include wilcard characters.
+.lit
+
+		Kermit-11>REM ERASE *.MAC
+
+		Files deleted:
+		SY:[2,2]FUBAR.MAC
+		SY:[2,2]HLPSUB.MAC
+
+		Kermit-11>
+
+.eli
+The remote Kermit server may respond with the filenames deleted, the above
+example is what a Kermit-11 server would respond with.
+.s 1
+.i-1;2 FINISH
+.s 1
+ The REMOTE FINISH command will tell Kermit-11 ,
+ which is in local mode, to signal
+ the other kermit to exit from server mode. When Kermit-11 has received
+ acknowledgement that this is being done it will prompt for another command.
+ REMOTE FINISH is the same as the FINISH command.
+ The command format is:
+.lit
+
+		Kermit-11>REMOTE FINISH
+
+or
+		Kermit-11>REMOTE
+		Remote Kermit cmd ?FINISH
+
+.eli
+.s 1
+.i-1;2 GET
+.s 1
+ The REMOTE GET command tells the remote kermit
+ which is in server mode to get
+ a file or group of files. REMOTE GET is the same as the GET command.
+ The format for this command is:
+.lit
+ 
+		Kermit-11>REMOTE GET
+
+or
+
+		Kermit-11>REMOTE
+		Remote Kermit cmd ?GET
+
+.eli
+.s 1
+.i-1;2 HELP
+.s 1
+The REMOTE HELP command instructs a remote Kermit server to send a list
+of remote commands that it can process.
+.s 1
+.i-1;2 HOST
+.s 1
+The REMOTE HOST command sends the comamnd over to the remote Kermit
+for execution on that system. This is only currently supported for
+version 8.0 of RSTS/E, and will be supported for RSX11M Plus in the
+near future.
+.rm 80
+.lit
+
+		Kermit-11>REM HOST SHO DEV
+
+		Busy Devices:
+		Device      Job    Why
+		KB12        18	   AS
+		PK0         29	   Open
+		PK1         8	   AS
+		PK2         5	   AS+Open
+		SH0         2	   Open
+		FE0         14	   AS+Open
+		
+		Disk Structure:
+		Dsk Open   Size    Free  Clu Err Name   Level  Comments
+		DK1    0   4800   640 13%  4  0  BRIAN4  1.1   Pri, DLW, Lck
+		DB0   23 171796 33944 19%  4  0  SYSPAC  1.1   Pub, DLW
+		DB1    3 171796 15948  9%  4  0  WORK1   1.1   Pri
+		DB2   53 131648  7344  5%  4  0  SYSLIB  1.1   Pri, DLW
+
+		Kermit-11>
+
+.eli
+.rm 70
+.i-1;2 RENAME
+.s 1
+ The remote RENAME command is used to rename a file or set of files. RENAME
+ is used with two arguments in the format:
+.lit
+
+		Kermit-11>REMOTE RENAME oldname newname
+
+.eli
+ If the remote RENAME is used with one or no argument it will prompt for missing
+ arguments:
+.lit
+		Kermit-11>REMOTE RENAME
+		From: oldname
+		To:   newname
+
+.eli
+ When the remote RENAME is finished the remote Kermit server will most
+likely return either a list of files renamed or a count of the number of
+files renamed. For a Kermit-11 server running remotely you would get
+a count of the number of files renamed.
+.lit
+
+		Kermit-11>REMOTE RENAME t.* junk
+		Remote ack: 3 files renamed
+
+.eli
+.s 1
+.i-1;2 SPACE
+.s 1
+ The REMOTE SPACE command sends a generic command to the remote kermit
+ requesting information about the amounts of space available and space used on
+ the remote host. Command format is:
+.lit
+
+		Kermit-11>REMOTE SPACE
+
+or
+
+		Kermit-11>REMOTE
+		Kermit Remote cmd ?SPACE
+
+.eli
+.s 1
+.i-1;2 TYPE
+.s 1
+The REMOTE TYPE command is just like the TYPE command but it tells
+a remote Kermit server to get the file to be typed on your terminal and
+send it over.
+.lit
+
+		Kermit-11>REMOTE TYPE FUBAR.MAC
+
+.eli
+.s 1
+.i-1;2 WHO
+.s 1
+The REMOTE WHO command instructs a remote Kermit server to send a listing
+of who's logged into the system. This is currently only operational for
+Kermit server running under RSTS/E. Please note that this command may be
+restricted by the system manager.
+.lit
+
+		Kermit-11>REMOTE WHO
+
+.eli
+.s 1
+.i-1;1 RENAME
+.s 1
+ The RENAME command is used to rename a local (only) file. RENAME
+ can be used with two arguments is the format:
+.lit
+
+		Kermit-11>RENAME oldname newname
+
+.eli
+ If RENAME is used with one or no argument it will prompt for missing
+ arguments:
+.lit
+		Kermit-11>RENAME
+		From: oldname
+		To:   newname
+
+.eli
+ When RENAME is finished it will return a 'report' of what it has done:
+.lit
+
+		Kermit-11>RENAME t.* junk
+		File DB0:[1,8]T.T1 renamed to DB0:[1,8]JUNK.T1
+		File DB0:[1,8]T.T renamed to DB0:[1,8]JUNK.T
+
+.eli
+.s 1
+.i-1;1 RESTRICTIONS
+.s 1
+Prior to version 2.21, Kermit-11 did not support 8-bit prefixing.
+.br
+Prior to version 2.23, Kermit-11 did not support repeat character
+encoding.
+.br
+The PRO/RT11 version of Kermit-11 will request 8-bit prefixing due to
+the fact that the XC handler does not support 8BIT data. For most Kermits
+this should not be a problem.  The XC handler always strips bit 7 from
+the character being sent, so the PRO/RT11 version of Kermit will
+request prefixing of such. It does so internally by setting PARITY to
+SPACE (always clear the high bit, bit seven).
+.i-1;1 RSTS
+.s 1
+Kermit-11 runs on version 7.2 or later of RSTS/E. Due to options
+present in version 8, binary file transfers will not be possible
+under version 7.2 of RSTS/E. This is due to the use of 8 bit mode
+for the terminal link to allow all characters to be passed.
+The so called '8BIT' termianl setting was new as of version
+8.0-06 of RSTS/E.
+.s 1
+Any RSTS/E system running Kermit-11 will need the sysgen option for
+multiple private delimiters in the terminal driver. This special
+mode is needed since the 'normal' RSTS/E binary terminal mode
+has a 'feature' that disables binary mode whenever the terminal
+times out on a read. Since timeouts are essential to Kermit
+error recovery, binary mode can not be used for i/o.
+.s 1
+Certain functions of Kermit-11 require that the system manager
+install Kermit with temporary priveledges, these commands are
+the SYSTEM, WHO and REMOTE HOST commands. Kermit-11 does NOT
+need these to operate correctly.
+.s 1
+Kermit-11 can only be built under RSTS/E version 8.0 or later
+due to the use of RMS11 v2.0 and new assembler directives.
+.s 1
+.i-1;1 RSX11M/M+
+.s 1
+Kermit-11 can not be installed non-checkpointable due to an
+apparent RMS11 bug. In other words, don't try to install the
+task '/CKP=NO'.
+.s 1
+To use the connect command effectively, typeahead support is
+needed in the terminal driver. For RSX11M+, set the typeahead
+buffer size high, as in SET /TYPEAHEAD=TT22:200. Also, if your
+connect line is TT22: (as above), use the mcr command SET/SLAVE=TT22:
+
+.s 1
+Kermit-11 can only be built under RSX11M version 4.1 or later,
+or under RSX11M Plus version 2.1 or later
+due to the use of RMS11 v2.0 and new assembler directives.
+.s 1
+.i-1;1 RT11
+.s 1
+Kermit-11, as of version 2.20, has been tested under RT11
+version 5.0 under the FB and XM monitors using a DZ11 line for
+the link, and also on a PDT-150 using the modem port for the link.
+Kermit-11 requires
+_.TWAIT support as well as multiple terminal support. The use
+of multiple terminal support allows Kermit-11 to use any type
+of interface sysgened, including the DZ11 and DZV11.
+For PRO/RT11 information, see HELP PRO RT11.
+.s 1
+Please note that the device name syntax for terminal lines follows
+the MT unit numbers, thus if a SHO TER gave unit 5 for DZ11 line 0
+the the device name would be:
+.lit
+
+	Kermit-11>SET LINE 5
+
+.eli
+Additionally, Kermit-11 for RT11 looks for its help file, K11HLP.HLP,
+on DK: first and then on SY: if the first one fails.
+.s 1
+Full wildcarding is supported for RT11, in the form *.type, name.*,
+*.* and the % character to match any single character.
+.s 1
+Kermit-11 can only be built on RT11 version 5.0 or later due
+to the use of new assembler directives.
+.br
+Please note that for the connect command under RT11 you will most
+likely need xon/off flow control to be generated by Kermit-11. This
+is enabled with the SET RTFLOW ON command. This is by default OFF since
+the modem the author uses, a Vadic 212LS, can't handle XONs and XOFFs
+while in command mode. The solution here is to escape back to Kermit
+command mode after the remote system has been logged into, and then
+type SET RTFLOW ON.
+.s 1
+The REMOTE DIRECTORY command will not function for a RT11 server.
+Also, due to overlaying constraints, the RT11 Kermit-11 will not
+accept wildcards for the RENAME and DELETE commands and the REMOTE
+server equivalents.
+.s 1
+The executable files are K11XM.SAV for the XM system and PRO/350, and
+K11RT4 for the FB system.
+
+.s 1
+.i-1;1 SEND
+.s 1
+ The SEND command will allow the user to send a file(s) to the other
+ kermit. If Kermit-11 is running in remote mode the file will be sent
+ on the controlling terminal line after waiting the number of seconds
+ specified by the SET DELAY command. This gives the user time to escape
+ to the other kermit and issue a receive command. If Kermit-11 is running
+ in local mode , the file will be sent immediately on the terminal line
+ specified by the set line command. Format of the SEND command is:
+.lit
+
+		Kermit-11>SEND file-specification
+
+.eli
+ Where 'file-specification' can include device,ppn or uic,as well as
+ the file-spec. which may use wildcarding.
+.s 1
+.i-1;1 SERVER
+.s 1
+ The SERVER command will put Kermit-11 into server mode. When Kermit-11
+ is in server mode while runnuing as a remote kermit (transmitting over
+ the controlling terminal line) the other kermit can issue server
+ commands to send and receive files without having to give SEND or
+ RECEIVE commands to Kermit-11. In order to correctly receive binary
+ files while in server mode a SET FILETYPE BINARY must be done first.
+ At this time there is no way for Kermit-11 to determine whether an
+ incomming file is ascii or binary. Command format is:
+.lit
+
+		Kermit-11>SERVER
+
+
+ At this time, the Kermit-11 server can process the following
+ commands:
+
+		BYE		Logout Kermit-11.
+		REMOTE COPY	Copy a file to another.
+		REMOTE DIR 	Prints a directory out.
+		REMOTE DISK	Prints the disk  space.
+		REMOTE ERASE	Delete the filename(s).
+		FINISH		Exits Kermit-11 server.
+		GET 		Sends  the filename(s).
+		REMOTE HELP	Prints this  help text.
+		REMOTE HOST	Execute a host command.
+		REMOTE RENAME	Rename old file to new.
+		REMOTE SPACE	Prints the disk  space.
+		REMOTE TYPE	Prints the filename(s).
+		REMOTE WHO	Shows users logged  in.
+
+
+.eli
+.s 1
+.i-1;1 SET
+.s 1
+ The SET command is used to set various parameters in kermit.
+ The format of the SET command is:
+.lit
+
+		Kermit-11>SET parameter keyword
+
+.eli
+.s 1
+.i-1;2 ATTRIBUTES
+.s 1
+Part of the Kermit protocal is the support of file attributes. Connected
+Kermits that support this can send information to each other about file
+size, time/date of creation, RMS file headers and other useful things.
+Due to potential problems with incompatible implementations this feature
+can be disabled. In this case, the sending Kermit-11 will never try to
+send file attributes, even though the receiver may have indicated that it
+supports this.
+.lit
+
+		Kermit-11>SET ATTRIBUTES OFF
+		Kermit-11>SET ATTRIBUTES ON
+
+.eli
+.s 1
+.i-1;2 BAUD
+.s 1
+This is the same as SET SPEED.  See HELP SET SPEED
+.s 1
+.i-1;2 BLOCK-CHECK
+.s 1
+ The SET BLOCK_CHECK command is used to  determine  the  
+ block  check  sequence  which  will be used during transmission.  The
+ block check sequence is used to detect  transmission  errors.   There
+ are  three  types  of  block  check  available.  These are the single
+ character checksum (default), the two  character  checksum,  and  the
+ three character CRC (cyclic redundancy check).  This command does not
+ ensure that the desired type of block check will be used, since  both
+ Kermit's involved in the transfer must agree on the block check type.
+ Kermit-11 will request that the type  of  block  check  set  by  this
+ command be used for a transfer.  If the other Kermit has also had the
+ same block check type requested, then the desired  block  check  type
+ will be used.  Otherwise, the single character checksum will be used.
+ The command should be given to BOTH Kermits since Kermit-11, when in
+ server mode, has no say about what kind of checksum it wants to use.
+ (See Kermit protocol manual for more information.)
+.lit
+
+           Kermit-11>SET BLOCK_CHECK keyword
+	   Kermit-11>SET BLO 1
+	   Kermit-11>SET BLO 2
+	   Kermit-11>SET BLO 3
+
+.eli
+ Where keyword is one of:
+.lit
+
+	  1_CHARACTER_CHECKSUM or ONE_CHARACTER_CHECKSUM
+
+	  2_CHARACTER_CHECKSUM or TWO_CHARACTER_CHECKSUM
+
+	  3_CHARACTER_CRC_CCITT or THREE_CHARACTER_CRC_CCITT
+
+.eli
+.s 1
+.i-1;2 DEBUG
+.s 1
+ The SET DEBUG command is used to specify the type and level of debugging
+ to a disk file . This disk file must have been created by the SET LOGFILE
+ command. The format for SET DEBUG is:
+.lit
+
+		Kermit-11>SET DEBUG qualifier
+
+.eli
+.s 1
+.i-1;3 ALL
+.s 1
+ SET DEBUG ALL will turn on logging for CONSOLE,CONNECT,FILE,PACKET
+ and STATE to the disk file specified by SET LOGFILE.
+ This commamd is the same as SET DEBUG ON. The command format is:
+.lit
+
+		Kermit-11>SET DEBUG ALL
+
+.eli
+.s 1
+.i-1;3 CONSOLE
+.s 1
+ SET DEBUG CONSOLE will turn on logging for all i/o during a remote
+ connect to the disk file specified by SET LOGFILE.
+ This command is the same as SET DEBUG CONNECT.
+ The command format is:
+.lit
+
+		Kermit-11>SET DEBUG CONSOLE
+
+.eli
+.s 1
+.i-1;3 CONNECT
+.s 1
+ SET DEBUG CONNECT will turn on logging for all i/o during a remote
+ connect to the disk file specified by SET LOGFILE.
+ This command is the same as SET DEBUG CONSOLE.
+ The command format is:
+.lit
+
+		Kermit-11>SET DEBUG CONNECT
+
+.eli
+.s 1
+.i-1;3 FILE
+.s 1
+ SET DEBUG FILE will log all file 'opens' and 'creates' to the file specified
+ by SET LOGFILE. The command format is:
+.lit
+
+		Kermit-11>SET DEBUG FILE
+
+.eli
+.s 1
+.i-1;3 HELP
+.s 1
+ SET DEBUG HELP gives the user a list of all qualifiers which can be
+ used with SET DEBUG. Command format is:
+.lit
+
+		Kermit-11>SET DEBUG HELP
+
+.eli
+.s 1
+.i-1;3 NONE
+.s 1
+ SET DEBUG NONE 'turns off' all debugging. This is the same as the 
+ SET DEBUG OFF command. Command format is:
+.lit
+
+		Kermit-11>SET DEBUG NONE
+
+.eli
+.s 1
+.i-1;3 OFF
+.s 1
+SET DEBUG OFF 'turns off' all debugging. This is the same as the
+SET DEBUG NONE command. Command format is:
+.lit
+
+		Kermit-11>SET DEBUG OFF
+
+.eli
+.s 1
+.i-1;3 ON
+.s 1
+ SET DEBUG ON will'turn on' logging for CONSOLE,CONNECT,FILE,PACKET
+ and STATE to the disk file specified by SET LOGFILE.
+ This commamd is the same as SET DEBUG ALL.
+ The command format is:
+.lit
+
+		Kermit-11>SET DEBUG ON
+
+.eli
+.s 1
+.i-1;3 PACKET
+.s 1
+ SET DEBUG PACKET will 'turn on' logging of all receive and transmit
+ packets to the disk file specified by SET LOGFILE.
+ The command format is:
+.lit
+
+		Kermit-11>SET DEBUG PACKET
+
+.eli
+.s 1
+.i-1;3 STATE
+.s 1
+ SET DEBUG STATE will turn on logging of all internal Kermit-11 state
+ transitions 
+.s 1
+.i-1;2 DELAY
+.s 1
+ The DELAY parameter is the number of seconds to wait  before  sending
+ data  after  a SEND command is given.  This is used when Kermit-11 is
+ running in remote mode to allow the user time to escape back  to  the
+ other Kermit and give a RECEIVE command.
+.lit
+
+           Kermit-11>SET DELAY number-of-seconds
+
+.eli
+ Where number of seconds is the (decimal) number  of  second  to  wait
+ before sending data.
+.s 1
+.i-1;2 DEFAULT
+.s 1
+The DEFAULT parameter allows you to specify a device and UIC (or PPN) for
+all subsequent file opens (for SENDING) and file creates (for RECEIVING).
+It is disabled by typing SET HOME.
+.lit
+
+		Kermit-11>SET DEFAULT device
+		Kermit-11>SET DEFAULT DB2:[200,201]
+
+.eli
+This is quite useful for Kermit-11 running on a DECNET link, as you can
+set the default for file operations to include node names and passwords
+as in:
+.lit
+
+		Kermit-11>set def orion::sys$system:[fubar]
+
+.eli
+.s 1
+.i-1;2 DUPLEX
+.s 1
+The DUPLEX parameter controls whether an outgoing link (set via the SET LINE
+command) is a full duplex link (the default) or a half duplex link.  All it
+does for half duplex is to cause all characters typed after the CONNECT command
+to be echoed locally.
+.lit
+
+		Kermit-11>SET DUPLEX HALF
+		Kermit-11>SET DUPLEX FULL
+
+.eli
+.s 1
+.i-1;2 END-OF-LINE
+.s 1
+The END-OF-LINE parameter sets the ascii character which will be used as
+a line terminator for all packets SENT to the other KERMIT. This is normally
+not needed for most versions of KERMIT.
+.lit
+
+		Kermit-11>SET END-OF-LINE octal value of character
+
+.eli
+.s 1
+.i-1;2 ESCAPE
+.s 1
+ This  command  will  set  the  escape  character  for   the   CONNECT
+ processing.   The  command will take the octal value of the character
+ to use as the escape character.  This is the character which is  used
+ to  "escape"  back  to Kermit-11 after using the CONNECT command.  It
+ defaults to control \ (octal 34).  It is usually a  good  idea  to  set  this
+ character  to  something which is not used (or at least not used very
+ much) on the system being to which Kermit-11 is CONNECTing.
+.lit
+
+           Kermit-11>SET ESCAPE octal-character-value
+
+.eli
+ Where octal-character-value is the ASCII value of  the  character  to
+ use as the escape character (in octal).
+.s 1
+.i-1;2 FILE_TYPE
+.s 1
+ This command will set the file type that Kermit is receiving.  A file
+ type  of  ASCII  should be used to receive text files which are to be
+ used as text files on the PDP11 system.  The file type BINARY should be
+ used for binary files, such as CP/M .COM files, which need to be kept
+ in a format that allows the file to be returned without any changes.
+.lit
+
+           Kermit-11>SET FILE_TYPE type
+
+.eli
+.i -1;3 ASCII
+.s 1
+ File type ASCII is for text files.
+.s 1
+.i-1;3 AUTO
+.s 1
+ Kermit-11 will normally try to decide if a file must be sent in binary
+ mode based on the file attributes and filetype. If, for instance, the
+ directory entry for FUBAR.TXT showed it to be RMS (or FCS) fixed length
+ records, Kermit-11 will switch to binary mode and send it verbatim. If
+ the receiving Kermit is Kermit-11, then the sending Kermit will send
+ attribute data over also.
+ The following file types also will normally be sent as binary files unless
+ you use the SET FILE NOAUTO command.
+.lit
+
+		*.TSK	; rsx, ias, and rsts tasks
+		*.SAV	; rt11 and rsts save images
+		*.OBJ	; compiler and mac output
+		*.STB	; tkband link symbol tables
+		*.CRF	; tkb and link cross reference files
+		*.TSD	; 'time shared dibol' for rt11
+		*.BAC	; rsts basic+ 'compiled' files
+		*.OLB	; rsx, ias, and rsts object libraries
+		*.MLB	; rsx, ias, and rsts macro libraries
+		*.RTS	; rsts/e run time systems
+		*.EXE	; vms executable
+
+.eli
+.i-1;3 BINARY
+.s 1
+ File type BINARY is for non-text files.  Note that binary files which
+ are  generated  on  a PDP11 system cannot be transferred to another 
+ (non PDP-11)
+ system  without  losing  file  attributes.   This  means  that   (for
+ example),  an  RSM11 indexed file cannot be transmitted with Kermit-11 at
+ this time.  You can not have parity set to anything but NONE to use binary
+ file transfer (see HELP SET PARITY) unless the other Kermit can process
+ eight bit quoting.
+ Two Kermit-11's connected to each other will use binary transmission
+ automatically via the Kermit attribute packets, preserving file attributes
+ where it makes sense (ie, RSTS/E and RSX only).
+.s 1
+.i-3;3 NOAUTO
+.s 1
+ SET FILE NOAUTO disables Kermit-11 from trying to base binary transmission
+ mode on file attributes or filetype.
+.s 1
+.i-1;2 HANGUP
+.s 1
+SET HANGUP is the same as the DISCONNECT command. It forces a connected
+line (specified via the SET LINE command) to be dropped.  This is currently
+only supported for RSTS version 8.
+.lit
+
+		Kermit-11>SET HANGUP
+
+.eli
+.s 1
+.i-1;2 HOME
+.s 1
+SET HOME resets the default device and UIC (or PPN) to nothing, ie, all file
+opens and creates use your default disk (SY:) and your UIC (or PPN).
+.lit
+
+		Kermit-11>SET HOME
+
+.eli
+.s 1
+.i-1;2 IBM-MODE
+.s 1
+.lit
+The SET IBM ON (or OFF) will instruct Kermit-11 to wait for an XON
+following each packet sent to an IBM host. Since the default for IBM
+mode may not always be appropiate for your IBM compatible system, you
+can always use the SET HANDSHAKE XON and SET DUPLEX HALF to avoid the
+parity setting implied by using IBM mode.
+.lit
+
+		Kermit-11>SET IBM ON
+		Kermit-11>SET IBM OFF
+
+.eli
+.s 1
+.i-1;2 LINE
+.s 1
+The SET LINE command sets the terminal name up for use with the connect
+command. To use this you must have access to that device. On many systems
+terminal lines other than your own are protected from access, and may require
+special procedures to access them.
+.br
+The form of the device name is TTnnn:, where 'nnn' is a decimal number for
+RSTS and an octal number for RSX11M/M+.
+For RT11, the device name is simply the MT unit number shown by the SHO TER
+command, as in '5' for DZ11 unit 0 line 4.
+If you are running K11POS.TSK for P/OS on the PRO/350, Kermit-11 will set
+the line to XK0: and the speed to 9600 baud when Kermit starts. To override
+the line or speed, set HELP SET LINE and HELP SET SPEED.
+.lit
+
+		Kermit-11>SET LINE TT55:	(for RSTS and RSX)
+		Kermit-11>SET LINE 5		(for RT11)
+		Kermit-11>SET LINE XK0:		(for P/OS)
+
+.eli
+See HELP CONNECT, HELP SET DUPLEX and HELP SET SPEED for more information.
+.s 1
+.i-1;2 LOGFILE
+.s 1
+The SET LOGFILE command creates a debug dump file for you. It must be
+used BEFORE any SET DEBUG commands can be used. See HELP DEBUG for further
+information about debugging modes.
+.lit
+
+		Kermit-11>SET LOGFILE MYLOG.TXT
+		Created debug file MYLOG.TXT
+		Kermit-11>
+
+.eli
+.s 1
+.i-1;2 PACKET-LENGTH
+.s 1
+You can alter the default transmitted packet length with the SET PACKET-LENGTH
+command. This should not normally be needed unless the line is very noisy, at
+which time you should probably give up anyway.
+.lit
+
+		Kermit-11>SET PACKET 60
+
+.eli
+.s 1
+.i-1;2 PARITY
+.s 1
+This is used with the SET LINE and CONNECT commands to specify the type
+of parity for the remote link. It defaults to NONE and can be either
+ODD,  EVEN, MARK or SPACE as in:
+.lit
+
+		Kermit-11>SET PARITY NONE
+		Kermit-11>SET PARITY ODD
+		Kermit-11>SET PARITY EVEN
+		Kermit-11>SET PARITY MARK
+		Kermit-11>SET PARITY SPACE
+
+.eli
+All parity generation is done via software, no special hardware is used.
+The use of software parity generation is restricted to 8 bit links only. The
+character format, if parity is set to anything but NONE, will be 7 bits of
+data followed with high bit set or cleared to indicate the parity. If you
+set parity to anything but NONE (the default) you can NOT, at this time, send
+binary files.  Attempting to set parity if the FILETYPE is BINARY will result
+in an error (SET FILETYPE qualifier).
+.s 1
+.i-1;2 PAUSE
+.s 1
+PAUSE tells Kermit to wait the specified number of seconds between each
+packet being sent to the other Kermit. This may be useful under situations
+of heavy system load. This may be automatically computer by Kermit-11 in
+a future release as a function of line speed.
+.lit
+
+		Kermit-11>SET PAUSE 1
+
+.eli
+.s 1
+.i-1;2 PROMPT
+.s 1
+The SET PROMPT command is useful if you are using two Kermit-11's to
+talk to each other. By using the SET PROMPT command, you can change the
+prompt from 'Kermit-11>' on either (or both) Kermit to something that
+would indicate which system you are currently connected to.
+.lit
+
+		Kermit-11>SET PROMPT KERMIT-11/1170>
+		Kermit-11>SET PROMPT FUBAR>
+		Kermit-11>SET PROMPT PROKERMIIT-11>
+
+.eli
+.s 1
+.i-1;2 RANDOM
+.s 1
+This command allows Kermit-11 to randomly generate checksum errors for
+testing error recovery of an attatched Kermit.  You would normally never
+use this command. Another command that goes with it is called SET SEED value
+which starts the psuedo random number generator at a different point.
+.lit
+
+		Kermit-11>SET RANDOM ON
+		Kermit-11>SET RANDOM OFF
+
+.eli
+.s 1
+.i-1;2 RECORD-FORMAT
+.s 1
+Kermit will, by default, create RMS11 variable length implied carriage control
+records for text files. You can override this and change it to create stream
+ascii records with the SET RECORD-FORMAT STREAM command. This is useful for
+RSTS/E systems if you need file compatibility with BASIC Plus.
+.lit
+
+		Kermit-11>SET RECORD-FORMAT STREAM
+		Kermit-11>SET RECORD-FORMAT VARIABLE
+
+.eli
+This command would be most useful in a KERMIT.INI file, which is executed by
+KERMIT when Kermit starts.
+.s 1
+.i-1;2 RETRY
+.s 1
+SET RETRY value tells Kermit to try that many times on a NAK'ed packet
+before giving up. This should only be needed if the line is extremely
+noisy or the PDP11 host is running very slowly due to the system load.
+.lit
+
+		Kermit-11>SET RETRY 10
+
+.eli
+.s 1
+.i-1;2 RTFLOW
+.s 1
+Note that for the connect command under RT11 you will most
+likely need xon/off flow control to be generated by Kermit-11. This
+is enabled with the SET RTFLOW ON command. This is by default OFF since
+the modem the author uses, a Vadic 212LS, can't handle XONs and XOFFs
+while in command mode. The solution here is to escape back to Kermit
+command mode after the remote system has been logged into, and then
+type SET RTFLOW ON.
+.br
+The effect of SET RTFLOW ON is for Kermit-11, when in connect mode,
+to send an XOFF to the host every eight characters. When the loop in
+the connect module finds no more data in the input buffer, it sends
+up to 2 XON characters (in case the first XON got lost) to tell the
+remote system to start sending again. The reason for doing so is that
+the RT11 multiple terminal service is very slow about handling input
+interupts and does not do any of it's own flow control when it's internal
+ring buffer gets full. This has been tested at line speeds up to 4800
+baud without losing data.
+.br
+SET RTFLOW has NO effect on packet transmission, since the Kermit packet
+size is never mode than 96 characters, and the RT11 input buffer is 134
+characrters in size.
+.lit
+
+		Kermit-11>SET RTFLOW ON
+		Kermit-11>SET RTFLOW OFF
+
+.eli
+.s 1
+.i-1;2 SPEED
+.s 1
+SET SPEED value sets the line speed for the device specified via the
+SET LINE command, and used for the CONNECT command. Changing the speed
+of a terminal line requires privilege for RSTS and RSX11M/M+.
+The SET SPEED command will only function with a DH11, DHV11, DZ11 or DZV11
+multiline interface.
+.lit
+
+		Kermit-11>SET SPEED 1200
+
+.eli
+1200 Baud would be a normal speed to use with a VA212LS or a DF03.
+.s 1
+Please note that Kermit-11 CAN NOT change the speed of a DL11 type interface,
+nor can it change the speed of a PDT-150 modem port.
+For a PDT-150 modem port, use a command of /M/S:nnnn. to change the speed to
+nnnn for the SPEED.SAV program.
+
+.s 1
+.i-1;2 TIMEOUT
+.s 1
+The timeout value tells Kermit how long to wait to get a packet from
+the other Kermit. If system loads are high, it may be desirable to increase
+this beyond the default of 10 seconds.
+.s 1
+.i-1;2 TERMINAL
+.s 1
+The SET TERMINAL command simply controls the way which Kermit-11 prints
+packet counts while send or receiving a file (or group of files). The
+simplest way is the default, SET TER TTY. Using SET TER VT100 will cause
+Kermit to display headers for the numbers printed, at a possible cost
+in packet speed due to screen control overhead.
+.lit
+
+		Kermit-11>SET TER TTY
+		Kermit-11>SET TER VT100
+
+.eli
+.s 1
+.i-1;1 SHOW
+.s 1
+The SHOW command will display the settings made by the SET command and allow
+you to look at session statistics.
+.lit
+
+		Kermit-11>SHOW parameter
+
+.eli
+.i-1;2 ALL
+.lit
+Displays everything:	BLOCK-CHECK	DEBUG		DEFAULT		ESCAPE
+			FILE-TYPE	LINE		PACKET		PARAM
+			TIME		VERSION
+
+.eli
+.i-1;2 BLOCK-CHECK-TYPE
+.s 1
+Displays the current type of checksum set.
+.s 1
+.i-1;2 DEBUG
+.s 1
+Shows the status of debugging.
+.s 1
+.i-1;2 DEFAULT
+.s 1
+Shows the device and UIC (or PPN) used for file operations.
+.s 1
+.i-1;2 ESCAPE
+.s 1
+Shows the escape character used to return to a local Kermit-11
+.s 1
+.i-1;2 FILE-TYPE
+.s 1
+Shows the current filetype (BINARY or ASCII)
+.s 1
+.i-1;2 LINE
+.s 1
+Displays parameters associated with the current connect line.
+.s 1
+.i-1;2 PACKET
+.s 1
+Prints out packets statistics from the last transaction and total so far.
+.s 1
+.i-1;2 PARAMETERS
+.s 1
+Prints out various send parameters
+.i-1;2 RECORD-FORMAT
+.s 1
+Shows what kind of file will be created by Kermit.
+.s 1
+.i-1;2 TIME
+.s 1
+The time of day
+.s 1
+.i-1;2 VERSION
+.s 1
+My current version and edit.
+.s 1
+.i-1;1 STARTUP
+.s 1
+You can place a file called KERMIT.INI in your account and have Kermit-11
+automatically read commands from it before getting commands from your terminal.
+.s 1
+.i-1;1 SYSTEM
+.s 1
+The SYSTEM command takes a CCL/MCR/DCL command line and spawns a task to
+execute it. This is done via the SPWN$S directive for RSX and by spawning
+a job on a psuedo kerboard for RSTS. If the command fails for RSTS then Kermits
+protection code was set to run without privileges.
+.lit
+
+		Kermit-11>SYS PIP DB1:=FUBAR.DAT
+		Kermit-11>SYS
+		Command: SUB MYJOB
+		Kermit-11>
+
+.eli
+.s 1
+.i-1;1 TAKE
+.s 1
+The Take command is just like the @ command. It opens a disk file for reading
+commands from, as in TAKE filename.
+.lit
+
+		Kermit-11>TAKE MYKERM.CMD
+
+.eli
+.i-1;1 TYPE
+.s 1
+The TYPE command prints a file to your terminal, as in:
+.lit
+
+		Kermit-11>TYPE KERMIT.INI
+
+.eli
+.s 1
+.i-1;1 USAGE
+.s 1
+Kermit-11 is normally run on the PDP-11 host system as a server. This means
+that a remote Kermit can send it commands without the user having to be switching
+between the local Kermit (usually a micro) and the remote Kermit (the one on
+the PDP-11).  While Kermit-11 supports most of the server commands shown in
+version Four revision 1 of the protocol manual (see HELP REMOTE), not all
+micro based Kermits are able to send these commands to Kermit-11.  Most
+Kermits do support the GET, SEND, BYE and FINISH server commands, which
+are sufficient for most file transfers. The following is an example of the
+dialoge when a DEC VT180 Robin connects to a PDP11/70 RSTS system to use
+Kermit.
+.rm 80
+.lit
+
+   A>b:
+   B>a:cpmrob
+   Kermit-80 V3.6 [VT180 "Robin"]
+
+   Kermit-80  B:>connect
+   [Connected to remote host, type Control-\C to return]
+
+   LOG
+   RSTS V8.0-07 U of Toledo 70 Job 12 KB25  17-Feb-84  03:31 PM
+   User    # 2/2
+   Password:
+
+   Welcome to RSTS/E version 8.0
+
+   $ kermit
+   Kermit-11>server
+   Kermit Server running on PDP-11 host. Please type your escape sequence
+   to return  to your local machine.  Shut down the server by  typing the
+   Kermit BYE command on your local machine.
+
+   (the user now types Ctrl \C)
+
+   Kermit-80  B:>get *.odl
+	.
+	. All files on the 11/70 with types of ODL are sent
+	.
+   Kermit-80  B:>bye
+   B>
+
+.eli
+See HELP SEND, HELP GET and HELP BYE for additional information.
+.rm 70
+.s 1
+.i-1;1 WHO
+.s 1
+The WHO command (currently for RSTS/E only) prints a brief SYSTAT out.
+.s 1

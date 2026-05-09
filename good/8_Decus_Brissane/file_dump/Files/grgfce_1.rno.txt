@@ -1,0 +1,145 @@
+.comment - prototype Lab Report - edit 16-Jan-81 - G. R. Grinton
+^^
+.nnm
+.nhy
+.ap
+.p 0,1,t
+.nf
+State Electricity Commission of Victoria
+Research and Development Department
+.s
+Herman Research Laboratory,
+Howard Street, Richmond,
+Victoria 3121, Australia.
+.s
+Telephone: 03 429 1511 X492
+.s 5
+.c;  LABORATORY  REPORT
+.s
+.comment - insert report number here (twice)
+.title LS/81/122
+                                               No: LS/81/122
+.s
+.comment - insert date of report here
+                                             Date: 23-Jun-81
+.s 5
+.c;  ***********************************
+.c;  *                                 *
+.c;  *                                 *
+.c;  *             FCE                 *
+.c;  *                                 *
+.comment - insert title here
+.c;  *        A COMMAND-FORCING        *
+.c;  *       UTILITY FOR RSX-11M       *
+.c;  *                                 *
+.c;  *                                 *
+.c;  ***********************************
+.s 4
+Subject:
+.s 4
+.f
+.comment - insert summary and introduction here
+.s
+This document describes a program which allows a privileged user
+of the RSX-11M computer system to force commands onto another
+terminal connected to the system.
+.s 4
+.nf
+                                Signed:   Geoffrey R Grinton
+                                          Scientific Officer
+.pg
+ 
+.s 30
+.comment - insert job details here
+Submitted by:             Name:     G. R. Grinton
+                          Section:  Engineering Systems
+                          Phone:    492
+ 
+Accepted by:              Name:     G. R. Grinton
+                          Section:  Engineering Systems
+ 
+                          On:       28-Mar-80
+ 
+Activity Number: 922509
+ 
+Remarks:
+ 
+.comment - insert RSX-11 file name here
+File: [110,32]LS81122.RNO
+ 
+.f
+.nm 0
+.pg
+.hl 1 INTRODUCTION
+The program described in this report, called FCE,
+allows a privileged user of the RSX-11M
+computer system to force a command onto another terminal.
+.hl 1 INITIATING FCE
+The utility may be invoked by any of the standard RSX methods.
+The task file resides in the [2,54] library, and is usually
+installed with task name '...FCE'.
+
+Any of the following commands may be used:
+.s
+.lm +5
+.nf
+FCE
+
+FCE command-string
+
+RUN ...FCE
+
+RUN LB:[2,54]FCE
+.S
+.f
+.LM 0
+In order to successfully use the program the user must have
+logged on to a privileged account, and must have a current UIC
+which is also in the privileged class.
+.hl 1 FCE COMMAND STRING
+The command string may be null, in which case the program will
+prompt the user for commands.
+If the user allows FCE to issue prompts, it continues to prompt
+for further commands until the user exits by entering a null line
+or by typing CTRL/Z.
+
+If required, the user may include the responses to the expected
+prompts in a file to be used as an indirect command file.
+.hl 1 FCE COMMAND SYNTAX
+FCE accepts commands with the same syntax as the BRO utility.
+Either of the following forms may be used:
+.s
+.lm +5
+^&FCE> \&TTn:command
+.br
+^&FCE> \&n:command
+.s
+.lm 0
+Note that the terminal number may be abbreviated by the omission
+of the characters 'TT'.
+
+The command may be any legal RSX-11M command.
+It will be processed in exactly the same manner as if the command
+had been typed on terminal number 'n'.
+.hl 1 EXAMPLES
+The following examples show typical uses of the utility.
+.s
+.nf
+.lm +5
+&>FCE TT3:DIR      !request a directory
+
+&>FCE 7:BYE        !get a user off the system
+
+&>FCE
+^&FCE>\& 4:HEL 203/132/HKG
+^&FCE>\& 4:RUN BIGPROG
+^&FCE>\&
+&>
+.s
+.lm 0
+.f
+.s 5
+G.#R.#Grinton
+.br
+.comment - Insert report edit date here
+23-Jun-81

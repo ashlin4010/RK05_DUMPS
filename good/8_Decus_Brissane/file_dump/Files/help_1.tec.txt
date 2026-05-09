@@ -1,0 +1,32 @@
+J::SH ::SE ::SL ::SP @^UT/T/ @^US/HKEX/ -1ED
+:ERSY:HELP.TXT"F:ERHELP.TXT"F?HELP-F-File not found HELP.TXT
+''
+.UZ <:S /"F :S/"F 0;'' .+^SUY
+::ST"T::SE"T::SR"T::SM"T::SI"T::SN"T::SA"T::SL''''''QY,.K .-Z;
+0A"R OOPTION' 0;'
+::SP"T::SR"T::SI"T::SN"T::ST"T::SE"T::SR'''''QY,.K
+.-Z"N 0A"R OOPTION'' EWLP: ^UTP ^USEFHKEX' 0;> QZJ
+.-Z"E Y<FS\;> 0,ZMT MS'
+::S "FOSYNTAX'
+::S*"S .-Z"NOSYNTAX' <"N MS'Y ::S\ 1::S\ 1::S\ .,.+^QMT >'
+0,.K 0UX :S "S XX 1UX .-1,ZK'  HXYHK
+<"N?HELP-F-Help not available for  :GY 
+ MS' Y ::S\ ::S\ ::S\ ::SQY"S 0;'>
+QX"E<FS\;> 0,ZMTMS'
+<QX"E 0;' ZJ .UZ GX QZJ 0UX :S,"S XX 1UX .-1,ZK'
+QZJ 0UV :S:"S XV 1UV .-1,ZK'
+QZ,ZXY QZ,ZK
+J<:S\\"F?HELP-W-Help not available for subtopic  ZJGYT 
+ OCONT2' ::SQY"S 0;'>
+0L .UZ :2S\\"F ZJ' 0L QZ,.XW ZJ .UW QWUY GW
+<QV"E 0;' ZJ .UZ GV QZJ 0UV :S:"S XV 1UV .-1,ZK'
+QZ,ZXY QZ,ZK
+QYJ <:S\"F?HELP-W-Help not available for subtopic item  ZJGYT 
+ OCONT1' ::SQY"S 0;'>
+0L .UZ :2S\"F ZJ' 0L QZ,.XW ZJ .UW GW
+QWJ <FS\;> QW,ZMT !CONT1! QW,ZK>
+QWJ <FS\;> QW,ZMT !CONT2! QY,ZK> MS
+!SYNTAX! ?HELP-F-Syntax error in command, type 'HELP<RET>'
+ MS
+!OPTION! ?HELP-F-Illegal option, type 'HELP<RET>'
+ MS
