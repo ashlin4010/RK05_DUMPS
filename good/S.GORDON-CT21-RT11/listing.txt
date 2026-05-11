@@ -1,0 +1,100 @@
+.DIR RK1:
+
+SWAP  .SYS    25 29-Feb-80      RT11SJ.SYS    70 22-May-84
+RT11FB.SYS    84 22-May-84      DX    .SYS     3 22-May-84
+RK    .SYS     3 22-May-84      LS    .SOS     2 30-May-84
+NL    .SYS     2 22-May-84      PIP   .SAV    23 29-Feb-80
+DUP   .SAV    41 25-Jun-81      DIR   .SAV    17 29-Feb-80
+FORMAT.SAV    19 29-Feb-80      SLP   .SAV     9 29-Feb-80
+SIPP  .SAV    20 25-Jun-81      RESORC.SAV    15 29-Feb-80
+SYSMAC.SML    42 13-Apr-82      EDIT  .SAV    19 29-Feb-80
+KED   .SAV    60 29-Feb-80      K52   .SAV    55 29-Feb-80
+TECO  .SAV    50 29-Feb-80      MACRO .SAV    51 29-Feb-80
+MAC8K .SAV    56 29-Feb-80      CREF  .SAV     6 29-Feb-80
+LINK  .SAV    41 29-Feb-80      LIBR  .SAV    22 25-Jun-81
+FILEX .SAV    18 29-Feb-80      SRCCOM.SAV    13 29-Feb-80
+BINCOM.SAV    10 29-Feb-80      DUMP  .SAV     8 29-Feb-80
+PATCH .SAV    10 29-Feb-80      PAT   .SAV     8 29-Feb-80
+HELP  .SAV   107 13-Apr-82      HELP  .EXE     7 29-Feb-80
+HELP  .MLB    98 29-Feb-80      SYSMAC.MAC    41 13-Apr-82
+QUEMAN.SAV    13 29-Feb-80      QUEUE .REL    14 29-Feb-80
+VT52  .TEC     5 29-Feb-80      ODT   .OBJ     9 29-Feb-80
+VDT   .OBJ     9 29-Feb-80      GETSTR.FOR     2 29-Feb-80
+PUTSTR.FOR     2 29-Feb-80      SYSLIB.OBJ    47 13-Apr-82
+BASIC .SAV    56 16-Aug-77      FORTRA.SAV   129 06-Sep-81
+FORLIB.OBJ   161 09-Sep-81      FORTRA.HLP     4 12-Nov-79
+DATIME.SAV     2 13-Jun-79      LP    .SYS     2 25-Jun-81
+STARTF.COM     1 06-Feb-86      XFER  .BAS     9 10-May-82
+PLANE .SAV    48 22-Apr-81      FMTVER.COM     1 07-May-85
+RKTRKT.MAC     2 15-Jun-84      X8085 .FOR    40 19-Sep-80
+Y8085 .FOR    44 08-Oct-80      X8085 .SAV    68 19-Nov-84
+SIM85 .FOR    69 08-Oct-80      SIMSUB.FOR    23 02-Sep-80
+SG8085.HEX     1 20-Nov-84      SIM85 .LST    95 20-Nov-84
+SIM85 .SAV    86 20-Nov-84      X8085 .COM     1 16-Nov-84
+Z8085 .COM     1 19-Nov-84      X8085 .OBJ    47 19-Nov-84
+Y8085 .OBJ   134 19-Nov-84      SG8085.COM     1 20-Nov-84
+SG8085.MIC     2 20-Nov-84      SG8085.LST     4 20-Nov-84
+SIM85 .COM     1 20-Nov-84      ZSIM85.COM     1 20-Nov-84
+SIM85 .OBJ   120 20-Nov-84      SIMSUB.OBJ   155 20-Nov-84
+X8085 .LST    59 19-Nov-84      Y8085 .LST    74 19-Nov-84
+SIMSUB.LST    46 20-Nov-84      LHCC1 .ORG   104 01-Feb-85
+DR11RM.SAV     2 27-Feb-85      SGMIC .COM     1 01-Feb-85
+LHCTST.COM     1 20-Feb-85      LHCTST.MIC     3 20-Feb-85
+LHCTST.LST     6 20-Feb-85      MACSAG.COM     1 22-Feb-85
+DR11  .SAV    27 28-Feb-85      DR11RM.STB     1 25-Feb-85
+LHCC1 .COM     1 20-Feb-85      LHCC1 .LST   171 20-Feb-85
+LHCTST.HEX     1 20-Feb-85      DR11RM.OBJ     1 27-Feb-85
+PROM09.DAT    14 28-Feb-85      DR11  .FOR    11 28-Feb-85
+LHCC1 .MIC   106 20-Feb-85      LHCC1 .HEX     9 20-Feb-85
+DR    .COM     1 25-Feb-85      DR11  .COM     1 26-Feb-85
+DR11RM.MAC     7 27-Feb-85      DR11  .OBJ    53 28-Feb-85
+DR11  .STB     6 28-Feb-85      SG774A.ROM    14 07-Feb-85
+SG774B.ROM    14 07-Feb-85      HEXCNV.COM     1 11-Mar-85
+LHCTST.HAX     1 12-Mar-85      HEXCNV.OBJ    65 13-Mar-85
+HEXCNV.SAV    29 13-Mar-85      LHCC1 .HAX     1 11-Mar-85
+HEXCNV.STB     6 13-Mar-85      HEXCNV.FOR    20 20-Mar-85
+LHCTST.DAT    10 11-Mar-85      SGHEX .FOR     4 20-Mar-85
+SGHEX .OBJ    10 20-Mar-85      BACKUP.COM     1 08-Apr-85
+HEXCNV.LST    42 13-Mar-85      MEM05 .DMP     1 28-Apr-85
+XXDPPL.MON     2 28-Apr-85      MEM05 .DOK     2 28-Apr-85
+XXDPPL.DOK     2 28-Apr-85      VT100 .COM     1 18-Jun-84
+LSLA36.COM     1 27-Jun-84      LSQUME.COM     1 26-Jun-84
+FB    .COM     1 24-Jul-84      SJ    .COM     1 24-Jul-84
+QP    .COM     1 26-Jul-84      QLA   .COM     1 27-Jul-84
+UNQ   .COM     1 27-Aug-84      QQ    .COM     1 27-Aug-84
+VT52CO.TXT     1 21-May-85      STARTF.TXT     1 24-May-85
+DEGDAY.BAS     3 24-May-85      VT52  .COM     1 28-May-85
+DEG   .COM     1 20-Jun-85      DEGDAY.SAV    48 28-Jun-85
+DEGDAY.OBJ    70 28-Jun-85      DEGDAY.AVA     4 09-Jul-85
+DEGDAY.MST     4 23-Jun-86      SGMTST.SAV     4 04-Mar-86
+LA36  .COM     1 27-Jun-85      DEGDAY.FOR    31 28-Jun-85
+DEGDAY.LST    51 28-Jun-85      DEG   .SAG    15 27-Jun-85
+SG775L.LBL     3 25-Apr-86      SGDUMP.SAV     2 29-Apr-86
+SG7700.BAC    12 23-Jun-86      SG7700.BAS    12 23-Jun-86
+LAM1  .DAT     4 23-Jul-84      LTG1  .DAT     2 07-May-84
+LTGENT.FOR     2 26-Jun-84      LTGDAT.SAV    48 25-Jul-84
+LTGAMD.FOR    21 28-Jun-84      LTGDAT.FOR    34 25-Jul-84
+LDES1 .REL    58 11-Sep-84      LTGRES.DAT     1 31-Aug-84
+LDES2 .SAV    42 20-Sep-84      LTG   .FOR     6 25-Feb-87
+L1    .SAV    32 23-Nov-83      LDES2 .FOR    18 04-Feb-86
+FTG1  .DAT    50 26-Jun-84      GC823E.RNO    19 08-Oct-85
+GC543E.RNO    10 04-Nov-85      GC637E.RNO    59 09-Nov-85
+GC852E.RNO    38 19-Nov-85      GH855E.RNO    20 16-Dec-85
+SGMTST.COM     1 24-Feb-86      SGMTST.MAC     7 04-Mar-86
+SGMTST.OBJ     1 04-Mar-86      SGDUMP.OBJ     1 29-Apr-86
+SGDUMP.COM     1 29-Apr-86      SGDUMP.MAC     2 29-Apr-86
+BM873A.ROM    60 29-Apr-86      PIPE71.HP     11 25-Jul-81
+TEST  .DAT     1 15-Jun-83      HEATGA.IN      1 20-Jun-83
+TEST  .BAN     1 20-Jun-83      7240G .BAS     8 29-Jun-83
+LIFT  .BAS    13 21-Dec-83      LOSS  .BAS     3 13-Jul-83
+7240F6.BAS     8 18-Jul-83      7430  .BAS    11 05-Sep-83
+7650  .BAS    10 06-Oct-83      7710  .BAS    10 28-Mar-83
+DUCT  .BAS    12 07-Sep-84      S7740D.COM     1 01-Jul-86
+LDES1 .FOR    18 23-Feb-87      5049  .BAS    10 18-Jul-86
+S7740D.FOR     8 09-Dec-86      S7740C.RNO    33 06-Dec-86
+DEGDAY.TMP     4 25-Jul-86      LDES1 .SAV    40 25-Feb-87
+SJSBRF.RNO     3 08-Apr-87      S7740D.SAV    28 09-Dec-86
+S3045Q.RNO    11 25-Aug-87      S3045Q.DOC    13 25-Aug-87
+S3045Q.BAK    13 25-Aug-87
+ 191 Files, 4477 Blocks
+ 285 Free blocks
