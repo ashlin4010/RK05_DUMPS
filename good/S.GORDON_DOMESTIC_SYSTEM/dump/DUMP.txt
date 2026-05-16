@@ -1,0 +1,5 @@
+Run1:
+All data read with no error but it did need to re-seek a few times
+
+Run2:
+All data read with no error but it did need to re-seek a lot times

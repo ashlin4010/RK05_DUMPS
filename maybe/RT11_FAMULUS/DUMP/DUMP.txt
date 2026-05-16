@@ -1,0 +1,13 @@
+Run1: Lots of errors, most at the start. Don't try read again
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error

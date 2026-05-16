@@ -1,0 +1,3 @@
+Run1: 1 Read error about half way in, I am not sure the RK05 emulater likes errors
+
+Run2: 2 Read errors
