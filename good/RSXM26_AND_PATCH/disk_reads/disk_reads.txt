@@ -1,0 +1,5 @@
+Read_1:
+1 Read error about half way in, I am not sure the RK05 emulator likes errors
+
+Read_2:
+2 Read errors

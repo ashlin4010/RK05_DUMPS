@@ -1,6 +1,8 @@
-Run1: Start of disk bad, RK05 emu does not like that and has issues, no data, try again later
+Read_1:
+Start of disk bad, RK05 emu does not like that and has issues, no data, try again later
 
-Run2: Lost of errors and lost data.
+Read_2:
+Lost of errors and lost data.
 RK0:/Copy are you sure? YES
 ?DUP-W-Read error
 ?DUP-W-Read error
@@ -13,7 +15,8 @@ RK0:/Copy are you sure? YES
 ?DUP-W-Read error
 ?DUP-W-Read error
 
-Run3: lots of errors
+Read_3:
+Lots of errors
 ?DUP-W-Read error
 ?DUP-W-Read error
 ?DUP-W-Read error

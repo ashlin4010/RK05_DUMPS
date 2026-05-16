@@ -1,8 +1,5 @@
-Run1: Lots of errors, lots of noise, don't reuse disk
-?DUP-W-Read error
-?DUP-W-Read error
-?DUP-W-Read error
-?DUP-W-Read error
+Read_1:
+lots of errors, lot of noise, don't reuse disk
 ?DUP-W-Read error
 ?DUP-W-Read error
 ?DUP-W-Read error
@@ -16,3 +13,15 @@ Run1: Lots of errors, lots of noise, don't reuse disk
 ?DUP-W-Read error
 ?DUP-W-Read error
 
+Read_2: 1 less read errors
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error
+?DUP-W-Read error

@@ -1,6 +1,6 @@
-Run1:
+Read_1:
 ROM5 emulator had massive errors and crashed and damaged SD card file system.
-Disk was a but shakey, might skip it for now
+Disk has a lot of vibration, have skipped. Probably don't try read this again
 
 RK0:/Copy are you sure?YES
 ?DUP-W-Read error
@@ -15,4 +15,3 @@ RK0:/Copy are you sure?YES
 ?DUP-W-Read error
 ?DUP-W-Read error
 ?DUP-W-Read error
-

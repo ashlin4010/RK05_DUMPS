@@ -1,4 +1,5 @@
-Run1: Ok to start would not read past track 100? Try read with a different tool
+Read_1:
+Ok to start would not read past track 100? Try read with a different tool
 ?DUP-W-Read error
 ?DUP-W-Read error
 ?DUP-W-Read error
